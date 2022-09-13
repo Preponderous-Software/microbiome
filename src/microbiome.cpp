@@ -37,8 +37,8 @@ void initiateEntityMovement(std::vector<Entity>& entities, Environment& environm
 }
 
 int main() {
-    int environmentSize = 16;
-    Environment environment(0, "Earth", environmentSize);
+    int environmentSize = 8;
+    Environment environment(0, "microbiome", environmentSize);
     std::vector<Entity> entities = generateEntities(environmentSize);
     addEntitiesToEnvironment(entities, environment);
     int numTicks = 0;
