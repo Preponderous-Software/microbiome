@@ -1,0 +1,3 @@
+[submodule "env-lib-cpp"]
+	path = env-lib-cpp
+	url = https://github.com/Preponderous-Software/env-lib-cpp
