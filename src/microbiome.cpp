@@ -30,6 +30,7 @@ void Microbiome::initiateMicroorganismMovement() {
 
 void Microbiome::printConsoleRepresentation() {
     // generate line with the width of the environment
+    std::cout << "" << std::endl;
     std::string line = "";
     int numDashes = getGrid()->getSize();
     for (int i = 0; i < numDashes * 3; i++) {
