@@ -1,3 +1,4 @@
+#include <vector>
 #include "microbiome.h"
 
 using namespace envlibcpp;
@@ -22,9 +23,13 @@ void Microbiome::addMicroorganismsToEnvironment() {
 
 void Microbiome::initiateMicroorganismMovement() {
     for (Microorganism& microorganism : microorganisms) {
+        if (microorganism.isDead()) {
+            continue;
+        }
         Microorganism& retrievedMicroorganism = (Microorganism&) getEntity(microorganism.getId());     
         moveEntityToRandomAdjacentLocation(retrievedMicroorganism.getId());
         retrievedMicroorganism.incrementTimesMoved();
+        retrievedMicroorganism.consumeEnergy();
     }
 }
 
@@ -52,4 +57,39 @@ void Microbiome::printConsoleRepresentation() {
     }
     std::cout << line << std::endl;
     std::cout << std::endl;
+}
+
+std::vector<Microorganism> Microbiome::getMicroorganisms() {
+    return microorganisms;
+}
+
+int Microbiome::getNumAliveMicroorganisms() {
+    int numAlive = 0;
+    for (Microorganism& microorganism : microorganisms) {
+        if (!microorganism.isDead()) {
+            numAlive++;
+        }
+    }
+    return numAlive;
+}
+
+int Microbiome::getNumDeadMicroorganisms() {
+    int numDead = 0;
+    for (Microorganism& microorganism : microorganisms) {
+        if (microorganism.isDead()) {
+            numDead++;
+        }
+    }
+    return numDead;
+}
+
+int Microbiome::getTotalEnergy() {
+    int totalEnergy = 0;
+    for (Microorganism& microorganism : microorganisms) {
+        totalEnergy += microorganism.getEnergy();
+    }
+    if (totalEnergy < 0) {
+        totalEnergy = 0;
+    }
+    return totalEnergy;
 }

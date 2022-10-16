@@ -27,11 +27,16 @@ class MicrobiomeApplication {
         MicrobiomeApplication();
         bool run();
     private:
-        int entityFactor = 2;
-        int environmentSize = 8;
+        int numTicks = 0;
+        bool running = true;
+        int entityFactor = 3;
+        int environmentSize = 16;
         int maxTicks = 100;
         int tickLengthInSeconds = 1;
         Microbiome* microbiome;
+
+        void printRunningStats();
+        void printFinishedStats();
 };
 
 #endif
