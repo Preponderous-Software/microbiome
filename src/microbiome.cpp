@@ -2,52 +2,47 @@
 
 using namespace envlibcpp;
 
-Microbiome::Microbiome() {
-    environment = new Environment(0, "microbiome", 5);
+Microbiome::Microbiome(int id, std::string name, int size) : Environment(id, name, size) {
+    generateMicroorganisms(size * 2);
+    addMicroorganismsToEnvironment();
 }
 
-void Microbiome::generateEntities(int numEntities) {
-    for (int i = 0; i < numEntities; i++) {
-        Entity entity(i, "test");
-        entities.push_back(entity);
+void Microbiome::generateMicroorganisms(int numMicroorganisms) {
+    for (int i = 0; i < numMicroorganisms; i++) {
+        Microorganism microorganism(i, "test");
+        microorganisms.push_back(microorganism);
     }
 }
 
-void Microbiome::addEntitiesToEnvironment() {
-    for (Entity& entity : entities) {
-        environment->addEntity(entity);
+void Microbiome::addMicroorganismsToEnvironment() {
+    for (Microorganism& microorganism : microorganisms) {
+        addEntity(microorganism);
     }
 }
 
-void Microbiome::initiateEntityMovement() {
-    for (Entity& entity : entities) {
-        Entity& retrievedEntity = environment->getEntity(entity.getId());     
-        environment->moveEntityToRandomAdjacentLocation(retrievedEntity.getId());
+void Microbiome::initiateMicroorganismMovement() {
+    for (Microorganism& microorganism : microorganisms) {
+        Microorganism& retrievedMicroorganism = (Microorganism&) getEntity(microorganism.getId());     
+        moveEntityToRandomAdjacentLocation(retrievedMicroorganism.getId());
+        retrievedMicroorganism.incrementTimesMoved();
     }
 }
 
-bool Microbiome::run() {;
-    generateEntities(1);
-    addEntitiesToEnvironment();
-    int numTicks = 0;
-    bool running = true;
-    while (running) {
-        initiateEntityMovement();
-        environment->printConsoleRepresentation();
-        numTicks++;
-        if (numTicks == 100) {
-            running = false;
+void Microbiome::printConsoleRepresentation() {
+    std::cout << "=== " << getName() << " ===" << std::endl;
+    int index = 0;
+    for (Location& location : getGrid()->getLocations()) {
+        index++;
+        std::string toPrint = " ";
+        if (location.getNumEntities() > 0) {
+            toPrint = "o";
         }
-        sleep(1);
+        std::cout << " " << toPrint << "  ";
+        if (index == getGrid()->getSize()) {
+            std::cout << "\n";
+            index = 0;
+        }
     }
-    std::cout << "Locations: " << environment->getGrid()->getLocations().size() << "\n";
-    std::cout << "Entities: " << environment->getNumEntities() << "\n";
-    std::cout << "Ticks elapsed: " << numTicks << std::endl;
-    return 0;
-}
-
-int main() {
-    Microbiome microbiome;
-    microbiome.run();
-    return 0;
+    std::cout << "====================" << std::endl;
+    std::cout << std::endl;
 }

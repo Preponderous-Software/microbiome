@@ -1,8 +1,8 @@
 # remove old executable
-rm ./microbiome_executable
+rm ./mb_app
 
 # compile
 make
 
 # run
-./microbiome_executable
+./mb_app
