@@ -1,4 +1,4 @@
-PROJECT_FILES = src/mbapp.cpp src/microorganism.cpp src/microbiome.cpp
+PROJECT_FILES = src/mbapp.cpp src/microorganism.cpp src/microbiome.cpp src/config.cpp
 ENVLIBCPP_FILES = env-lib-cpp/src/entity.cpp env-lib-cpp/src/environment.cpp env-lib-cpp/src/grid.cpp env-lib-cpp/src/location.cpp
 
 all: mbapp

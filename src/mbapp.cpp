@@ -9,7 +9,7 @@
 using namespace envlibcpp;
 
 MicrobiomeApplication::MicrobiomeApplication() {
-    microbiome = new Microbiome(0, "microbiome", environmentSize, entityFactor);
+    microbiome = new Microbiome(0, "microbiome", config.getEnvironmentSize(), config.getEntityFactor());
 }
 
 void MicrobiomeApplication::printRunningStats() {
@@ -19,7 +19,7 @@ void MicrobiomeApplication::printRunningStats() {
         std::cout << "Dead Microorganisms: " << microbiome->getNumDeadMicroorganisms() << "\n";
         std::cout << "Total Energy: " << microbiome->getTotalEnergy() << "\n";
         std::cout << "" << std::endl;
-        std::cout << "Ticks Left: " << maxTicks - numTicks << std::endl;
+        std::cout << "Ticks Left: " << config.getMaxTicks() - numTicks << std::endl;
 }
 
 void MicrobiomeApplication::printFinishedStats() {
@@ -46,11 +46,11 @@ bool MicrobiomeApplication::run() {
             printRunningStats();
 
             numTicks++;
-            if (numTicks == maxTicks) {
+            if (numTicks == config.getMaxTicks()) {
                 running = false;
             }
-            if (tickLengthInSeconds > 0) {
-                sleep(tickLengthInSeconds);
+            if (config.getTickLengthInSeconds() > 0) {
+                sleep(config.getTickLengthInSeconds());
             }
 
             if (microbiome->getNumAliveMicroorganisms() == 0) {
@@ -62,7 +62,7 @@ bool MicrobiomeApplication::run() {
         totalDeadMicroorganisms += microbiome->getNumDeadMicroorganisms();
         totalEnergy += microbiome->getTotalEnergy();
         totalTicksElapsed += numTicks;
-        microbiome = new Microbiome(i, "microbiome " + i, environmentSize, entityFactor);
+        microbiome = new Microbiome(i, "microbiome " + i, config.getEnvironmentSize(), config.getEntityFactor());
     }
     if (numSimulations > 1) {
         std::cout << "" << std::endl;
