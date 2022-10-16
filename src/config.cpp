@@ -1,4 +1,4 @@
-#include "config.h"
+#include "header/config.h"
 
 int Config::getEnvironmentSize() {
     return environmentSize;
