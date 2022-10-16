@@ -9,12 +9,13 @@ using namespace envlibcpp;
 
 class Microbiome : public Environment {
     public:
-        Microbiome(int id, std::string name, int size);
-        void generateMicroorganisms(int numMicroorganisms);
-        void addMicroorganismsToEnvironment();
+        Microbiome(int id, std::string name, int size, int entityFactor);
         void initiateMicroorganismMovement();
         void printConsoleRepresentation();
     private:
+        void generateMicroorganisms(int numMicroorganisms);
+        void addMicroorganismsToEnvironment();
+        
         std::vector<Microorganism> microorganisms;
 };
 

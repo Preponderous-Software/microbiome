@@ -2,8 +2,8 @@
 
 using namespace envlibcpp;
 
-Microbiome::Microbiome(int id, std::string name, int size) : Environment(id, name, size) {
-    generateMicroorganisms(size * 2);
+Microbiome::Microbiome(int id, std::string name, int size, int entityFactor) : Environment(id, name, size) {
+    generateMicroorganisms(size * entityFactor);
     addMicroorganismsToEnvironment();
 }
 
@@ -29,13 +29,19 @@ void Microbiome::initiateMicroorganismMovement() {
 }
 
 void Microbiome::printConsoleRepresentation() {
-    std::cout << "=== " << getName() << " ===" << std::endl;
+    // generate line with the width of the environment
+    std::string line = "";
+    int numDashes = getGrid()->getSize();
+    for (int i = 0; i < numDashes * 4; i++) {
+        line += "=";
+    }
+    std::cout << line << std::endl;
     int index = 0;
     for (Location& location : getGrid()->getLocations()) {
         index++;
         std::string toPrint = " ";
         if (location.getNumEntities() > 0) {
-            toPrint = "o";
+            toPrint = "O";
         }
         std::cout << " " << toPrint << "  ";
         if (index == getGrid()->getSize()) {
@@ -43,6 +49,6 @@ void Microbiome::printConsoleRepresentation() {
             index = 0;
         }
     }
-    std::cout << "====================" << std::endl;
+    std::cout << line << std::endl;
     std::cout << std::endl;
 }
