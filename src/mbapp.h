@@ -30,8 +30,8 @@ class MicrobiomeApplication {
         int numTicks = 0;
         bool running = true;
         int entityFactor = 3;
-        int environmentSize = 16;
-        int maxTicks = 100;
+        int environmentSize = 12;
+        int maxTicks = 60;
         int tickLengthInSeconds = 1;
         Microbiome* microbiome;
 
