@@ -32,7 +32,7 @@ void Microbiome::printConsoleRepresentation() {
     // generate line with the width of the environment
     std::string line = "";
     int numDashes = getGrid()->getSize();
-    for (int i = 0; i < numDashes * 4; i++) {
+    for (int i = 0; i < numDashes * 3; i++) {
         line += "=";
     }
     std::cout << line << std::endl;
@@ -43,7 +43,7 @@ void Microbiome::printConsoleRepresentation() {
         if (location.getNumEntities() > 0) {
             toPrint = "O";
         }
-        std::cout << " " << toPrint << "  ";
+        std::cout << " " << toPrint << " ";
         if (index == getGrid()->getSize()) {
             std::cout << "\n";
             index = 0;
