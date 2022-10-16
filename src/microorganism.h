@@ -19,7 +19,7 @@ class Microorganism : public Entity {
     private:
         int minimumEnergy = 80;
         int energy = rand() % (100 - minimumEnergy) + minimumEnergy + 1;
-        int energyConsumptionRate = rand() % 5 + 1;
+        int energyConsumptionRate = rand() % 10 + 1;
         int timesMoved = 0;
 };
 

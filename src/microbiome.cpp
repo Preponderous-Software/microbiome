@@ -49,6 +49,10 @@ void Microbiome::printConsoleRepresentation() {
         if (location.getNumEntities() > 0) {
             toPrint = "O";
         }
+        // Microorganism& microorganism = (Microorganism&) location.getEntities()[location.getNumEntities() - 1];
+        // if (microorganism.isDead()) {
+        //     toPrint = "X";
+        // }
         std::cout << " " << toPrint << " ";
         if (index == getGrid()->getSize()) {
             std::cout << "\n";

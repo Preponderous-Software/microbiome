@@ -33,24 +33,46 @@ void MicrobiomeApplication::printFinishedStats() {
 }
 
 bool MicrobiomeApplication::run() {
-    while (running) {
-        microbiome->initiateMicroorganismMovement();
+    int totalSurvivingMicroorganisms = 0;
+    int totalDeadMicroorganisms = 0;
+    int totalEnergy = 0;
+    int totalTicksElapsed = 0;    
+    for (int i = 0; i < numSimulations; i++) {
+        while (running) {
+            microbiome->initiateMicroorganismMovement();
 
-        system("clear");
-        microbiome->printConsoleRepresentation();
-        printRunningStats();
+            system("clear");
+            microbiome->printConsoleRepresentation();
+            printRunningStats();
 
-        numTicks++;
-        if (numTicks == maxTicks) {
-            running = false;
+            numTicks++;
+            if (numTicks == maxTicks) {
+                running = false;
+            }
+            if (tickLengthInSeconds > 0) {
+                sleep(tickLengthInSeconds);
+            }
+
+            if (microbiome->getNumAliveMicroorganisms() == 0) {
+                running = false;
+            }
         }
-        sleep(tickLengthInSeconds);
-
-        if (microbiome->getNumAliveMicroorganisms() == 0) {
-            running = false;
-        }
+        printFinishedStats();
+        totalSurvivingMicroorganisms += microbiome->getNumAliveMicroorganisms();
+        totalDeadMicroorganisms += microbiome->getNumDeadMicroorganisms();
+        totalEnergy += microbiome->getTotalEnergy();
+        totalTicksElapsed += numTicks;
+        microbiome = new Microbiome(i, "microbiome " + i, environmentSize, entityFactor);
     }
-    printFinishedStats();
+    if (numSimulations > 1) {
+        std::cout << "" << std::endl;
+        std::cout << "=== Average Stats ===" << std::endl;
+        std::cout << "Average Surviving Microorganisms: " << totalSurvivingMicroorganisms / numSimulations << "\n";
+        std::cout << "Average Dead Microorganisms: " << totalDeadMicroorganisms / numSimulations << "\n";
+        std::cout << "Average Total Energy: " << totalEnergy / numSimulations << "\n";
+        std::cout << "Average Ticks elapsed: " << totalTicksElapsed / numSimulations << std::endl;
+        running = true;
+    }
     return 0;
 }
 

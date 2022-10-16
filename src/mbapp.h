@@ -29,10 +29,11 @@ class MicrobiomeApplication {
     private:
         int numTicks = 0;
         bool running = true;
-        int entityFactor = 3;
-        int environmentSize = 12;
+        int entityFactor = 5;
+        int environmentSize = 16;
         int maxTicks = 60;
-        int tickLengthInSeconds = 1;
+        int tickLengthInSeconds = 1; // if 0 then no delay
+        int numSimulations = 1;
         Microbiome* microbiome;
 
         void printRunningStats();
