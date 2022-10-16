@@ -2,8 +2,9 @@
 
 using namespace envlibcpp;
 
-Microbiome::Microbiome() {
-    environment = new Environment(0, "microbiome", 5);
+Microbiome::Microbiome(int id, std::string name, int size) : Environment(id, name, size) {
+    generateMicroorganisms(size * 2);
+    addMicroorganismsToEnvironment();
 }
 
 void Microbiome::generateMicroorganisms(int numMicroorganisms) {
@@ -15,40 +16,14 @@ void Microbiome::generateMicroorganisms(int numMicroorganisms) {
 
 void Microbiome::addMicroorganismsToEnvironment() {
     for (Microorganism& microorganism : microorganisms) {
-        environment->addEntity(microorganism);
+        addEntity(microorganism);
     }
 }
 
 void Microbiome::initiateMicroorganismMovement() {
     for (Microorganism& microorganism : microorganisms) {
-        Microorganism& retrievedMicroorganism = (Microorganism&) environment->getEntity(microorganism.getId());     
-        environment->moveEntityToRandomAdjacentLocation(retrievedMicroorganism.getId());
+        Microorganism& retrievedMicroorganism = (Microorganism&) getEntity(microorganism.getId());     
+        moveEntityToRandomAdjacentLocation(retrievedMicroorganism.getId());
         retrievedMicroorganism.incrementTimesMoved();
     }
-}
-
-bool Microbiome::run() {;
-    generateMicroorganisms(10);
-    addMicroorganismsToEnvironment();
-    int numTicks = 0;
-    bool running = true;
-    while (running) {
-        initiateMicroorganismMovement();
-        environment->printConsoleRepresentation();
-        numTicks++;
-        if (numTicks == 100) {
-            running = false;
-        }
-        sleep(1);
-    }
-    std::cout << "Locations: " << environment->getGrid()->getLocations().size() << "\n";
-    std::cout << "Microorganisms: " << environment->getNumEntities() << "\n";
-    std::cout << "Ticks elapsed: " << numTicks << std::endl;
-    return 0;
-}
-
-int main() {
-    Microbiome microbiome;
-    microbiome.run();
-    return 0;
 }
