@@ -15,6 +15,8 @@
 #include "../env-lib-cpp/src/header/location.h"
 #include "../env-lib-cpp/src/header/grid.h"
 
+#include "microorganism.h"
+
 #include <vector>
 
 using namespace envlibcpp;
@@ -22,12 +24,12 @@ using namespace envlibcpp;
 class Microbiome {
     public:
         Microbiome();
-        void generateEntities(int numEntities);
-        void addEntitiesToEnvironment();
-        void initiateEntityMovement();
+        void generateMicroorganisms(int numMicroorganisms);
+        void addMicroorganismsToEnvironment();
+        void initiateMicroorganismMovement();
         bool run();
     private:
-        std::vector<Entity> entities;
+        std::vector<Microorganism> microorganisms;
         Environment* environment;
 };
 
