@@ -1,6 +1,22 @@
 # microbiome
 This application allows the user to witness the activity of a virtual microbial community.
 
+## How to run the application with Docker-Compose
+1. Install Docker and Docker-Compose
+2. Clone the repository
+3. Open a terminal in the root directory of the repository
+4. Run the following command: `docker-compose up --build --remove-orphans`
+
+## How to run the application in the dev container
+1. Install Docker
+2. Clone the repository
+3. Open the project in VSCode.
+4. Install the Remote-Containers extension.
+5. Click on the green button in the bottom left corner of the window.
+6. Select "Reopen in Container".
+7. Open a terminal in VSCode.
+8. Run the `./cr.sh` script or build the project with `make` and run it with `./mb_app'.
+
 ## Classes
 ### MicrobiomeApplication
 This class is the main class of the application. It is responsible for the main loop.
