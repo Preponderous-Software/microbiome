@@ -17,6 +17,7 @@
 
 #include "microbiome.h"
 #include "microorganism.h"
+#include "config.h"
 
 #include <vector>
 
@@ -29,10 +30,7 @@ class MicrobiomeApplication {
     private:
         int numTicks = 0;
         bool running = true;
-        int entityFactor = 5;
-        int environmentSize = 16;
-        int maxTicks = 60;
-        int tickLengthInSeconds = 1; // if 0 then no delay
+        Config config;
         int numSimulations = 1;
         Microbiome* microbiome;
 
