@@ -13,6 +13,7 @@ class Microbiome : public Environment {
         void generateMicroorganisms(int numMicroorganisms);
         void addMicroorganismsToEnvironment();
         void initiateMicroorganismMovement();
+        void printConsoleRepresentation();
     private:
         std::vector<Microorganism> microorganisms;
 };

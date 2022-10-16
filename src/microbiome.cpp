@@ -27,3 +27,22 @@ void Microbiome::initiateMicroorganismMovement() {
         retrievedMicroorganism.incrementTimesMoved();
     }
 }
+
+void Microbiome::printConsoleRepresentation() {
+    std::cout << "=== " << getName() << " ===" << std::endl;
+    int index = 0;
+    for (Location& location : getGrid()->getLocations()) {
+        index++;
+        std::string toPrint = " ";
+        if (location.getNumEntities() > 0) {
+            toPrint = "o";
+        }
+        std::cout << " " << toPrint << "  ";
+        if (index == getGrid()->getSize()) {
+            std::cout << "\n";
+            index = 0;
+        }
+    }
+    std::cout << "====================" << std::endl;
+    std::cout << std::endl;
+}
