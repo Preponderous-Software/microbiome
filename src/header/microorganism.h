@@ -1,7 +1,7 @@
 #ifndef Microorganism_h
 #define Microorganism_h
 
-#include "../env-lib-cpp/src/header/entity.h"
+#include "../../env-lib-cpp/src/header/entity.h"
 
 using namespace envlibcpp;
 

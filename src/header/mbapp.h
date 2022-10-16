@@ -10,10 +10,10 @@
 #include <string>
 #include <iostream>
 
-#include "../env-lib-cpp/src/header/entity.h"
-#include "../env-lib-cpp/src/header/environment.h"
-#include "../env-lib-cpp/src/header/location.h"
-#include "../env-lib-cpp/src/header/grid.h"
+#include "../../env-lib-cpp/src/header/entity.h"
+#include "../../env-lib-cpp/src/header/environment.h"
+#include "../../env-lib-cpp/src/header/location.h"
+#include "../../env-lib-cpp/src/header/grid.h"
 
 #include "microbiome.h"
 #include "microorganism.h"

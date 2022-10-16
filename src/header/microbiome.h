@@ -1,7 +1,7 @@
 #ifndef Microbiome_h
 #define Microbiome_h
 
-#include "../env-lib-cpp/src/header/environment.h"
+#include "../../env-lib-cpp/src/header/environment.h"
 
 #include "microorganism.h"
 
