@@ -15,7 +15,7 @@ This application allows the user to witness the activity of a virtual microbial 
 5. Click on the green button in the bottom left corner of the window.
 6. Select "Reopen in Container".
 7. Open a terminal in VSCode.
-8. Run the `./cr.sh` script or build the project with `make` and run it with `./mb_app'.
+8. Run the `./cr.sh` script or build the project with `make` and run it with `./mb_app`.
 
 ## Classes
 ### MicrobiomeApplication
