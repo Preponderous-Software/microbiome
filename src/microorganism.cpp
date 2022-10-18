@@ -1,7 +1,5 @@
 #include "header/microorganism.h"
 
-using namespace envlibcpp;
-
 Microorganism::Microorganism(int id, std::string name) : Entity(id, name) {
     // empty
 }
@@ -36,4 +34,12 @@ void Microorganism::incrementTimesMoved() {
 
 bool Microorganism::isDead() {
     return energy <= 0;
+}
+
+int Microorganism::getTimesEaten() {
+    return timesEaten;
+}
+
+void Microorganism::incrementTimesEaten() {
+    timesEaten++;
 }

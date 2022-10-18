@@ -1,79 +1,67 @@
 #include "header/mbapp.h"
-
-#ifdef _WIN32
-#include <Windows.h>
-#else
-#include <unistd.h>
-#endif
-
-using namespace envlibcpp;
+#include "header/result.h"
 
 MicrobiomeApplication::MicrobiomeApplication() {
-    microbiome = new Microbiome(0, "microbiome", config.getEnvironmentSize(), config.getEntityFactor());
-}
-
-void MicrobiomeApplication::printRunningStats() {
-        std::cout << "Name: " << microbiome->getName() << std::endl;
-        std::cout << "Size: " << microbiome->getGrid()->getSize() << "x" << microbiome->getGrid()->getSize() << std::endl;
-        std::cout << "Microorganisms: " << microbiome->getNumAliveMicroorganisms() << std::endl;
-        std::cout << "Dead Microorganisms: " << microbiome->getNumDeadMicroorganisms() << "\n";
-        std::cout << "Total Energy: " << microbiome->getTotalEnergy() << "\n";
-        std::cout << "" << std::endl;
-        std::cout << "Ticks Left: " << config.getMaxTicks() - numTicks << std::endl;
-}
-
-void MicrobiomeApplication::printFinishedStats() {
-    std::cout << "" << std::endl;
-    std::cout << "=== Simulation Complete ===" << std::endl;
-    std::cout << "Locations: " << microbiome->getGrid()->getLocations().size() << "\n";
-    std::cout << "Surviving Microorganisms: " << microbiome->getNumAliveMicroorganisms() << "\n";
-    std::cout << "Dead Microorganisms: " << microbiome->getNumDeadMicroorganisms() << "\n";
-    std::cout << "Total Energy: " << microbiome->getTotalEnergy() << "\n";
-    std::cout << "Ticks elapsed: " << numTicks << std::endl;
+    config = Config();
 }
 
 bool MicrobiomeApplication::run() {
+    // run simulations
+    for (int i = 0; i < config.getNumSimulations(); i++) {
+        std::cout << "Running simulation " << i + 1 << " of " << config.getNumSimulations() << std::endl;
+        simulation = new Simulation(&config, i + 1, "Simulation " + std::to_string(i + 1));
+        if (!config.isSimulationOutputEnabled()) {
+            simulation->runWithNoOutput();
+        } else {
+            simulation->run();
+        }
+        Result result = Result(simulation);
+        results.push_back(result);
+        delete simulation;
+    }
+    
+    // print results
+    if (results.size() > 1) {
+        printResultAverages();
+    }
+    else if (results.size() == 1) {
+        results[0].print();
+    }
+    else {
+        std::cout << "No results to print." << std::endl;
+    }
+    
+    return 0;
+}
+
+void MicrobiomeApplication::printResults() {
+    // print out result summaries
+    for (int i = 0; i < results.size(); i++) {
+        std::cout << "=== Simulation " << i << " Result ===" << std::endl;
+        std::cout << "Surviving Microorganisms: " << results[i].getSurvivingMicroorganisms() << std::endl;
+        std::cout << "Dead Microorganisms: " << results[i].getDeadMicroorganisms() << std::endl;
+        std::cout << "Total Energy: " << results[i].getEnergy() << std::endl;
+        std::cout << "Ticks elapsed: " << results[i].getTicksElapsed() << std::endl;
+    }
+}
+
+void MicrobiomeApplication::printResultAverages() {
+    // print out averages of values in results
     int totalSurvivingMicroorganisms = 0;
     int totalDeadMicroorganisms = 0;
     int totalEnergy = 0;
-    int totalTicksElapsed = 0;    
-    for (int i = 0; i < numSimulations; i++) {
-        while (running) {
-            microbiome->initiateMicroorganismMovement();
-
-            system("clear");
-            microbiome->printConsoleRepresentation();
-            printRunningStats();
-
-            numTicks++;
-            if (numTicks == config.getMaxTicks()) {
-                running = false;
-            }
-            if (config.getTickLengthInSeconds() > 0) {
-                sleep(config.getTickLengthInSeconds());
-            }
-
-            if (microbiome->getNumAliveMicroorganisms() == 0) {
-                running = false;
-            }
-        }
-        printFinishedStats();
-        totalSurvivingMicroorganisms += microbiome->getNumAliveMicroorganisms();
-        totalDeadMicroorganisms += microbiome->getNumDeadMicroorganisms();
-        totalEnergy += microbiome->getTotalEnergy();
-        totalTicksElapsed += numTicks;
-        microbiome = new Microbiome(i, "microbiome " + i, config.getEnvironmentSize(), config.getEntityFactor());
+    int totalTicksElapsed = 0;
+    for (int i = 0; i < results.size(); i++) {
+        totalSurvivingMicroorganisms += results[i].getSurvivingMicroorganisms();
+        totalDeadMicroorganisms += results[i].getDeadMicroorganisms();
+        totalEnergy += results[i].getEnergy();
+        totalTicksElapsed += results[i].getTicksElapsed();
     }
-    if (numSimulations > 1) {
-        std::cout << "" << std::endl;
-        std::cout << "=== Average Stats ===" << std::endl;
-        std::cout << "Average Surviving Microorganisms: " << totalSurvivingMicroorganisms / numSimulations << "\n";
-        std::cout << "Average Dead Microorganisms: " << totalDeadMicroorganisms / numSimulations << "\n";
-        std::cout << "Average Total Energy: " << totalEnergy / numSimulations << "\n";
-        std::cout << "Average Ticks elapsed: " << totalTicksElapsed / numSimulations << std::endl;
-        running = true;
-    }
-    return 0;
+    std::cout << "=== Average Results of " << results.size() << " Simulations ===" << std::endl;
+    std::cout << "Surviving Microorganisms: " << totalSurvivingMicroorganisms / results.size() << std::endl;
+    std::cout << "Dead Microorganisms: " << totalDeadMicroorganisms / results.size() << std::endl;
+    std::cout << "Total Energy: " << totalEnergy / results.size() << std::endl;
+    std::cout << "Ticks elapsed: " << totalTicksElapsed / results.size() << std::endl;
 }
 
 int main() {
