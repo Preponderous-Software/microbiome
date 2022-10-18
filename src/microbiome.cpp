@@ -116,21 +116,6 @@ void Microbiome::printConsoleRepresentation() {
 void Microbiome::removeEntity(Entity& entity) {
     std::cout << "removing entity from environment" << std::endl;
     Environment::removeEntity(entity);
-
-    // // remove from microorganisms vector
-    // std::cout << "removing entity from microorganisms vector" << std::endl;
-    // try {
-    //     for (int i = 0; i < microorganisms.size(); i++) {
-    //         Microorganism& microorganism = microorganisms[i];
-    //         if (microorganism.getId() == entity.getId()) {
-    //             microorganisms.erase(microorganisms.begin() + i);
-    //             break;
-    //         }
-    //     }
-    // } catch (const std::exception& e) {
-    //     std::cout << "error removing entity from microorganisms vector" << std::endl;
-    //     std::cout << e.what() << std::endl;
-    // }
 }
 
 std::vector<Microorganism> Microbiome::getMicroorganisms() {
@@ -166,4 +151,25 @@ int Microbiome::getTotalEnergy() {
         totalEnergy = 0;
     }
     return totalEnergy;
+}
+
+void Microbiome::purgeMicroorganismsNotInEnvironment() {
+    std::vector<Microorganism*> microorganismsToRemove;
+    for (Microorganism& microorganism : microorganisms) {
+        if (microorganism.getEnvironmentId() == -1) {
+            microorganismsToRemove.push_back(&microorganism);
+        }
+    }
+    // use iterator to remove elements
+    for (Microorganism* microorganism : microorganismsToRemove) {
+        std::vector<Microorganism>::iterator iterator = microorganisms.begin();
+        while (iterator != microorganisms.end()) {
+            if (iterator->getId() == microorganism->getId()) {
+                iterator = microorganisms.erase(iterator);
+            }
+            else {
+                iterator++;
+            }
+        }
+    }
 }

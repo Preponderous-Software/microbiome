@@ -21,6 +21,7 @@ Simulation::~Simulation() {
 void Simulation::run() {
     while (running) {
         microbiome->initiateMicroorganismMovement();
+        microbiome->purgeMicroorganismsNotInEnvironment();
 
         system("clear");
         microbiome->printConsoleRepresentation();
@@ -44,6 +45,7 @@ void Simulation::run() {
 void Simulation::runWithNoOutput() {
     while (running) {
         microbiome->initiateMicroorganismMovement();
+        microbiome->purgeMicroorganismsNotInEnvironment();
 
         numTicks++;
         if (config->getMaxTicks() > 0 && numTicks >= config->getMaxTicks()) {

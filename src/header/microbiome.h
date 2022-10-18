@@ -17,6 +17,7 @@ class Microbiome : public Environment {
         int getNumAliveMicroorganisms();
         int getNumDeadMicroorganisms();
         int getTotalEnergy();
+        void purgeMicroorganismsNotInEnvironment();
     private:
         void generateMicroorganisms(int numMicroorganisms);
         void addMicroorganismsToEnvironment();
