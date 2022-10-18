@@ -15,3 +15,11 @@ int Config::getMaxTicks() {
 int Config::getTickLengthInSeconds() {
     return tickLengthInSeconds;
 }
+
+int Config::getNumSimulations() {
+    return numSimulations;
+}
+
+bool Config::isSimulationOutputEnabled() {
+    return simulationOutputEnabled;
+}

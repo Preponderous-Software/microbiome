@@ -14,13 +14,16 @@ class Microorganism : public Entity {
         void setEnergyConsumptionRate(int energyConsumptionRate);
         void consumeEnergy();
         int getTimesMoved();
+        int getTimesEaten();
         void incrementTimesMoved();
+        void incrementTimesEaten();
         bool isDead();
     private:
         int minimumEnergy = 80;
         int energy = rand() % (100 - minimumEnergy) + minimumEnergy + 1;
         int energyConsumptionRate = rand() % 10 + 1;
         int timesMoved = 0;
+        int timesEaten = 0;
 };
 
 #endif

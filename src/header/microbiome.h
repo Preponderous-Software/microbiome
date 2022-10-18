@@ -12,6 +12,7 @@ class Microbiome : public Environment {
         Microbiome(int id, std::string name, int size, int entityFactor);
         void initiateMicroorganismMovement();
         void printConsoleRepresentation();
+        void removeEntity(Entity& entity);
         std::vector<Microorganism> getMicroorganisms();
         int getNumAliveMicroorganisms();
         int getNumDeadMicroorganisms();
@@ -19,8 +20,11 @@ class Microbiome : public Environment {
     private:
         void generateMicroorganisms(int numMicroorganisms);
         void addMicroorganismsToEnvironment();
+        void initiateConsumptionOfDeadMicroorganisms(Microorganism& microorganism);
         
         std::vector<Microorganism> microorganisms;
+        std::string aliveMicroorganismRepresentation = "o";
+        std::string deadMicroorganismRepresentation = ".";
 };
 
 #endif

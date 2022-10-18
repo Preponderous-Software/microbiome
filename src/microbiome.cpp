@@ -1,8 +1,6 @@
 #include <vector>
 #include "header/microbiome.h"
 
-using namespace envlibcpp;
-
 Microbiome::Microbiome(int id, std::string name, int size, int entityFactor) : Environment(id, name, size) {
     generateMicroorganisms(size * entityFactor);
     addMicroorganismsToEnvironment();
@@ -22,7 +20,8 @@ void Microbiome::addMicroorganismsToEnvironment() {
 }
 
 void Microbiome::initiateMicroorganismMovement() {
-    for (Microorganism& microorganism : microorganisms) {
+    for (int i = 0; i < microorganisms.size(); i++) {
+        Microorganism& microorganism = microorganisms[i];
         if (microorganism.isDead()) {
             continue;
         }
@@ -30,6 +29,48 @@ void Microbiome::initiateMicroorganismMovement() {
         moveEntityToRandomAdjacentLocation(retrievedMicroorganism.getId());
         retrievedMicroorganism.incrementTimesMoved();
         retrievedMicroorganism.consumeEnergy();
+
+        initiateConsumptionOfDeadMicroorganisms(retrievedMicroorganism);
+    }
+}
+
+void Microbiome::initiateConsumptionOfDeadMicroorganisms(Microorganism& microorganism ) {
+    // get location of microorganism
+    Location& microorganismLocation = getGrid()->getLocation(microorganism.getLocationId());
+
+    // get entities at location
+    std::vector<Entity*> entities = microorganismLocation.getEntities();
+
+    if (entities.size() == 1) {
+        return;
+    }
+
+    // iterate through entities to check for the presence of a dead microorganism
+    Entity* toRemove = nullptr;
+    for (int i = 0; i < entities.size(); i++) {
+        Entity* entity = entities[i];
+        if (entity->getId() == microorganism.getId()) {
+            continue;
+        }
+        Microorganism& retrievedMicroorganism = (Microorganism&) *entity;
+        if (retrievedMicroorganism.isDead()) {
+            std::cout << "entity is dead" << std::endl;
+            microorganism.incrementTimesEaten();
+            toRemove = entity;
+
+            // increase energy
+            std::cout << "increasing energy" << std::endl;
+            int energy = microorganism.getEnergy();
+            int energyConsumptionRate = microorganism.getEnergyConsumptionRate();
+            microorganism.setEnergy(energy + energyConsumptionRate * 2);
+            break;
+        }
+    }
+
+    // remove dead microorganism
+    if (toRemove != nullptr) {
+        std::cout << "removing entity" << std::endl;
+        removeEntity(*toRemove);
     }
 }
 
@@ -47,12 +88,21 @@ void Microbiome::printConsoleRepresentation() {
         index++;
         std::string toPrint = " ";
         if (location.getNumEntities() > 0) {
-            toPrint = "O";
+            toPrint = aliveMicroorganismRepresentation;
+
+            // print X instead if microorganism is dead
+            int entityId = location.getEntities()[location.getEntities().size() - 1]->getId();
+            Microorganism& microorganism = (Microorganism&) getEntity(entityId);
+            if (microorganism.isDead()) {
+                toPrint = deadMicroorganismRepresentation;
+            }
+
+            // print + instead if microorganism has eaten
+            if (microorganism.getTimesEaten() > 0) {
+                toPrint = "+";
+            }
         }
-        // Microorganism& microorganism = (Microorganism&) location.getEntities()[location.getNumEntities() - 1];
-        // if (microorganism.isDead()) {
-        //     toPrint = "X";
-        // }
+
         std::cout << " " << toPrint << " ";
         if (index == getGrid()->getSize()) {
             std::cout << "\n";
@@ -61,6 +111,26 @@ void Microbiome::printConsoleRepresentation() {
     }
     std::cout << line << std::endl;
     std::cout << std::endl;
+}
+
+void Microbiome::removeEntity(Entity& entity) {
+    std::cout << "removing entity from environment" << std::endl;
+    Environment::removeEntity(entity);
+
+    // // remove from microorganisms vector
+    // std::cout << "removing entity from microorganisms vector" << std::endl;
+    // try {
+    //     for (int i = 0; i < microorganisms.size(); i++) {
+    //         Microorganism& microorganism = microorganisms[i];
+    //         if (microorganism.getId() == entity.getId()) {
+    //             microorganisms.erase(microorganisms.begin() + i);
+    //             break;
+    //         }
+    //     }
+    // } catch (const std::exception& e) {
+    //     std::cout << "error removing entity from microorganisms vector" << std::endl;
+    //     std::cout << e.what() << std::endl;
+    // }
 }
 
 std::vector<Microorganism> Microbiome::getMicroorganisms() {
