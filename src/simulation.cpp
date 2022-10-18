@@ -21,7 +21,7 @@ Simulation::~Simulation() {
 void Simulation::run() {
     while (running) {
         microbiome->initiateMicroorganismMovement();
-        microbiome->purgeMicroorganismsNotInEnvironment();
+        // microbiome->purgeMicroorganismsNotInEnvironment();
 
         system("clear");
         microbiome->printConsoleRepresentation();

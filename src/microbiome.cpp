@@ -88,13 +88,13 @@ void Microbiome::printConsoleRepresentation() {
         index++;
         std::string toPrint = " ";
         if (location.getNumEntities() > 0) {
-            toPrint = aliveMicroorganismRepresentation;
-
-            // print X instead if microorganism is dead
             int entityId = location.getEntities()[location.getEntities().size() - 1]->getId();
             Microorganism& microorganism = (Microorganism&) getEntity(entityId);
             if (microorganism.isDead()) {
                 toPrint = deadMicroorganismRepresentation;
+            }
+            else {
+                toPrint = aliveMicroorganismRepresentation;
             }
 
             // print + instead if microorganism has eaten
