@@ -28,9 +28,11 @@ void Microbiome::initiateMicroorganismMovement() {
         Microorganism& retrievedMicroorganism = (Microorganism&) getEntity(microorganism.getId());     
         moveEntityToRandomAdjacentLocation(retrievedMicroorganism.getId());
         retrievedMicroorganism.incrementTimesMoved();
-        retrievedMicroorganism.consumeEnergy();
+        retrievedMicroorganism.metabolize();
 
-        initiateConsumptionOfDeadMicroorganisms(retrievedMicroorganism);
+        if (deadMicroorganismConsumptionEnabled) {
+            initiateConsumptionOfDeadMicroorganisms(retrievedMicroorganism);
+        }
     }
 }
 
@@ -54,22 +56,19 @@ void Microbiome::initiateConsumptionOfDeadMicroorganisms(Microorganism& microorg
         }
         Microorganism& retrievedMicroorganism = (Microorganism&) *entity;
         if (retrievedMicroorganism.isDead()) {
-            std::cout << "entity is dead" << std::endl;
             microorganism.incrementTimesEaten();
             toRemove = entity;
 
             // increase energy
-            std::cout << "increasing energy" << std::endl;
             int energy = microorganism.getEnergy();
-            int energyConsumptionRate = microorganism.getEnergyConsumptionRate();
-            microorganism.setEnergy(energy + energyConsumptionRate * 2);
+            int metabolicRate = microorganism.getMetabolicRate();
+            microorganism.setEnergy(energy + metabolicRate * 2);
             break;
         }
     }
 
     // remove dead microorganism
     if (toRemove != nullptr) {
-        std::cout << "removing entity" << std::endl;
         removeEntity(*toRemove);
     }
 }
@@ -95,11 +94,16 @@ void Microbiome::printConsoleRepresentation() {
             }
             else {
                 toPrint = aliveMicroorganismRepresentation;
-            }
 
-            // print + instead if microorganism has eaten
-            if (microorganism.getTimesEaten() > 0) {
-                toPrint = "+";
+                // print + if microorganism has eaten
+                if (microorganism.getTimesEaten() > 0) {
+                    toPrint = subsistingMicroorganismRepresentation;
+                }
+
+                // print ! if microorganism is low on energy
+                if (microorganism.getEnergy() < 10) {
+                    toPrint = dyingMicroorganismRepresentation;
+                }
             }
         }
 
@@ -114,7 +118,6 @@ void Microbiome::printConsoleRepresentation() {
 }
 
 void Microbiome::removeEntity(Entity& entity) {
-    std::cout << "removing entity from environment" << std::endl;
     Environment::removeEntity(entity);
 }
 

@@ -7,6 +7,10 @@
 
 using namespace envlibcpp;
 
+/**
+ * The Microbiome class represents a 2D virtual environment populated with microorganisms.
+ * @author Daniel McCoy Stephenson
+ */
 class Microbiome : public Environment {
     public:
         Microbiome(int id, std::string name, int size, int entityFactor);
@@ -24,8 +28,13 @@ class Microbiome : public Environment {
         void initiateConsumptionOfDeadMicroorganisms(Microorganism& microorganism);
         
         std::vector<Microorganism> microorganisms;
+        
+        // microbiome config options
         std::string aliveMicroorganismRepresentation = "o";
+        std::string subsistingMicroorganismRepresentation = "+";
+        std::string dyingMicroorganismRepresentation = "!";
         std::string deadMicroorganismRepresentation = ".";
+        bool deadMicroorganismConsumptionEnabled = true;
 };
 
 #endif

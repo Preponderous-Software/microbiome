@@ -9,7 +9,7 @@
 
 #include "header/simulation.h"
 
-Simulation::Simulation(Config* config, int id, std::string name) {
+Simulation::Simulation(AppConfig* config, int id, std::string name) {
     this->config = config;
     this->microbiome = new Microbiome(id, name, config->getEnvironmentSize(), config->getEntityFactor());
 }
@@ -23,35 +23,18 @@ void Simulation::run() {
         microbiome->initiateMicroorganismMovement();
         // microbiome->purgeMicroorganismsNotInEnvironment();
 
-        system("clear");
-        microbiome->printConsoleRepresentation();
-        printRunningStats();
+        if (config->isSimulationOutputEnabled()) {
+            system("clear");
+            microbiome->printConsoleRepresentation();
+            printRunningStats();
+        }
+
 
         numTicks++;
         if (config->getMaxTicks() > 0 && numTicks >= config->getMaxTicks()) {
             running = false;
         }
 
-        if (config->getTickLengthInSeconds() > 0) {
-            sleep(config->getTickLengthInSeconds());
-        }
-
-        if (microbiome->getNumAliveMicroorganisms() == 0) {
-            running = false;
-        }
-    }
-}
-
-void Simulation::runWithNoOutput() {
-    while (running) {
-        microbiome->initiateMicroorganismMovement();
-        microbiome->purgeMicroorganismsNotInEnvironment();
-
-        numTicks++;
-        if (config->getMaxTicks() > 0 && numTicks >= config->getMaxTicks()) {
-            running = false;
-        }
-        
         if (config->getTickLengthInSeconds() > 0) {
             sleep(config->getTickLengthInSeconds());
         }

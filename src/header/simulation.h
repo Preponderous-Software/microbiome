@@ -2,15 +2,18 @@
 #define Microbiome_Simulation_h
 
 #include "microbiome.h"
-#include "config.h"
+#include "appConfig.h"
 
+/**
+ * The Simulation class represents a simulation of a Microbiome.
+ * @author Daniel McCoy Stephenson
+ */
 class Simulation {
     public:
         Simulation() = delete;
-        Simulation(Config* config, int id, std::string name);
+        Simulation(AppConfig* config, int id, std::string name);
         ~Simulation();
         void run();
-        void runWithNoOutput();
         int getSurvivingMicroorganisms();
         int getDeadMicroorganisms();
         int getEnergy();
@@ -21,7 +24,7 @@ class Simulation {
         bool running = true;
         int numTicks = 0;
         Microbiome* microbiome;
-        Config* config;
+        AppConfig* config;
 };
 
 #endif

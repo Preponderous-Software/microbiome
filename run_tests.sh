@@ -1,8 +1,8 @@
 # remove old executable
-rm ./mb_app
+rm ./tests
 
 # compile
-make mbapp
+make tests
 
 # run
-./mb_app
+./tests
