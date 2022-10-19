@@ -2,7 +2,7 @@
 #include "header/result.h"
 
 MicrobiomeApplication::MicrobiomeApplication() {
-    config = Config();
+    config = AppConfig();
 }
 
 bool MicrobiomeApplication::run() {
@@ -10,11 +10,7 @@ bool MicrobiomeApplication::run() {
     for (int i = 0; i < config.getNumSimulations(); i++) {
         std::cout << "Running simulation " << i + 1 << " of " << config.getNumSimulations() << std::endl;
         simulation = new Simulation(&config, i + 1, "Simulation " + std::to_string(i + 1));
-        if (!config.isSimulationOutputEnabled()) {
-            simulation->runWithNoOutput();
-        } else {
-            simulation->run();
-        }
+        simulation->run();
         Result result = Result(simulation);
         results.push_back(result);
         delete simulation;
@@ -58,10 +54,11 @@ void MicrobiomeApplication::printResultAverages() {
         totalTicksElapsed += results[i].getTicksElapsed();
     }
     std::cout << "=== Average Results of " << results.size() << " Simulations ===" << std::endl;
-    std::cout << "Surviving Microorganisms: " << totalSurvivingMicroorganisms / results.size() << std::endl;
-    std::cout << "Dead Microorganisms: " << totalDeadMicroorganisms / results.size() << std::endl;
-    std::cout << "Total Energy: " << totalEnergy / results.size() << std::endl;
     std::cout << "Ticks elapsed: " << totalTicksElapsed / results.size() << std::endl;
+    std::cout << "Dead Microorganisms: " << totalDeadMicroorganisms / results.size() << std::endl;
+    std::cout << "Surviving Microorganisms: " << totalSurvivingMicroorganisms / results.size() << std::endl;
+    std::cout << "Total Energy: " << totalEnergy / results.size() << std::endl;
+
 }
 
 int main() {

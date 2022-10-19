@@ -5,23 +5,29 @@
 
 using namespace envlibcpp;
 
+/**
+ * The Microorganism class represents an entity capable of existing in a 2D virtual environment.
+ * @author Daniel McCoy Stephenson
+ */
 class Microorganism : public Entity {
     public:
         Microorganism(int id, std::string name);
         int getEnergy();
-        int getEnergyConsumptionRate();
+        int getMetabolicRate();
         void setEnergy(int energy);
-        void setEnergyConsumptionRate(int energyConsumptionRate);
-        void consumeEnergy();
+        void setMetabolicRate(int energyConsumptionRate);
+        void metabolize();
         int getTimesMoved();
         int getTimesEaten();
         void incrementTimesMoved();
         void incrementTimesEaten();
         bool isDead();
     private:
-        int minimumEnergy = 80;
-        int energy = rand() % (100 - minimumEnergy) + minimumEnergy + 1;
-        int energyConsumptionRate = rand() % 10 + 1;
+        int maxEnergy = 200;
+        int maxMetabolicRateFactor = 5;
+        int minimumEnergy = 100;
+        int energy = rand() % (maxEnergy - minimumEnergy) + minimumEnergy + 1;
+        int metabolicRate = rand() % maxMetabolicRateFactor + 1;
         int timesMoved = 0;
         int timesEaten = 0;
 };

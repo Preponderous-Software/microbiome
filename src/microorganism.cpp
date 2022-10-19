@@ -8,20 +8,20 @@ int Microorganism::getEnergy() {
     return energy;
 }
 
-int Microorganism::getEnergyConsumptionRate() {
-    return energyConsumptionRate;
+int Microorganism::getMetabolicRate() {
+    return metabolicRate;
 }
 
 void Microorganism::setEnergy(int newEnergy) {
     energy = newEnergy;
 }
 
-void Microorganism::setEnergyConsumptionRate(int newRate) {
-    energyConsumptionRate = newRate;
+void Microorganism::setMetabolicRate(int newRate) {
+    metabolicRate = newRate;
 }
 
-void Microorganism::consumeEnergy() {
-    energy -= energyConsumptionRate;
+void Microorganism::metabolize() {
+    energy -= metabolicRate;
 }
 
 int Microorganism::getTimesMoved() {

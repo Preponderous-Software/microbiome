@@ -3,6 +3,10 @@
 
 #include "simulation.h"
 
+/**
+ * The Result class represents the results of a simulation.
+ * @author Daniel McCoy Stephenson
+ */
 class Result {
     public:
         Result() = delete;
