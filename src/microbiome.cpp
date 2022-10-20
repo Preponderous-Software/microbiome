@@ -151,8 +151,11 @@ void Microbiome::printConsoleRepresentation() {
 
 void Microbiome::addMicroorganism(Microorganism& microorganism) {
     logger->log("Adding microorganism " + std::to_string(microorganism.getId()));
-    Environment::addEntity(microorganism);
+    logger->log("entity ids before adding microorganism: " + getListOfEntityIds());
     microorganisms.push_back(microorganism);
+    logger->log("entity ids after pushing back but not adding to environment: " + getListOfEntityIds());
+    Environment::addEntity(microorganism);
+    logger->log("entity ids after adding microorganism: " + getListOfEntityIds());
 }
 
 void Microbiome::removeMicroorganism(Microorganism& microorganism) {
@@ -169,7 +172,7 @@ void Microbiome::removeMicroorganism(Microorganism& microorganism) {
     // }
 }
 
-std::vector<Microorganism> Microbiome::getMicroorganisms() {
+std::vector<Microorganism>& Microbiome::getMicroorganisms() {
     return microorganisms;
 }
 
@@ -250,6 +253,7 @@ bool Microbiome::isMicroorganismPresent(int id) {
 
 void Microbiome::initiateMicroorganismReproduction() {
     logger->log("Initiating microorganism reproduction");
+    logger->log("entity ids before: " + getListOfEntityIds());
     std::vector<Microorganism> microorganismsToAdd;
     for (int i = 0; i < microorganisms.size(); i++) {
         Microorganism& microorganism = microorganisms[i];
@@ -277,6 +281,8 @@ void Microbiome::initiateMicroorganismReproduction() {
         logger->log("Adding child microorganism " + std::to_string(child.getId()));
         addMicroorganism(child); // TODO: add microorganism to same location as parent
     }
+
+    logger->log("entity ids after: " + getListOfEntityIds());
 }
 
 Microorganism Microbiome::createOffspring(Microorganism& parent) {
@@ -286,4 +292,14 @@ Microorganism Microbiome::createOffspring(Microorganism& parent) {
     child.setReproductionThreshold(parent.getReproductionThreshold());
     parent.setEnergy(parent.getEnergy() / 2);
     return child;
+}
+
+std::string Microbiome::getListOfEntityIds() {
+    std::string toReturn = "";
+    for (Location& location : getGrid()->getLocations()) {
+        for (Entity* entity : location.getEntities()) {
+            toReturn += "" + std::to_string(entity->getId()) + ", ";
+        }
+    }
+    return toReturn.substr(0, toReturn.size() - 2);
 }

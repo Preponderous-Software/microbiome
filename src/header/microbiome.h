@@ -19,7 +19,7 @@ class Microbiome : public Environment {
         ~Microbiome();
         void addMicroorganism(Microorganism& microorganism);
         void removeMicroorganism(Microorganism& microorganism);
-        std::vector<Microorganism> getMicroorganisms();
+        std::vector<Microorganism>& getMicroorganisms();
         void initiateMicroorganismMovement();
         void printConsoleRepresentation();
         int getNumAliveMicroorganisms();
@@ -30,6 +30,7 @@ class Microbiome : public Environment {
         bool isMicroorganismPresent(int id);
         void initiateMicroorganismReproduction();
         Microorganism createOffspring(Microorganism& parent);
+        std::string getListOfEntityIds();
     private:
         void generateMicroorganisms(int numMicroorganisms);
         void addMicroorganismsToEnvironment();

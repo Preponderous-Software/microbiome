@@ -9,17 +9,6 @@
 
 #include "header/simulation.h"
 
-// helper methods
-std::string getListOfEntityIds(Microbiome* microbiome) {
-    std::string toReturn = "";
-    for (Location& location : microbiome->getGrid()->getLocations()) {
-        for (Entity* entity : location.getEntities()) {
-            toReturn += "" + std::to_string(entity->getId()) + ", ";
-        }
-    }
-    return toReturn.substr(0, toReturn.size() - 2);
-}
-
 Simulation::Simulation(AppConfig* config, int id, std::string name) {
     this->logger = new Logger("log.simulation.txt");
     logger->log("Creating simulation " + std::to_string(id) + " with name '" + name + "'");
@@ -48,19 +37,19 @@ void Simulation::run() {
             running = false;
         }
 
-        logger->log("initial entity ids: " + getListOfEntityIds(microbiome));
+        logger->log("initial entity ids: " + microbiome->getListOfEntityIds());
 
         logger->log("Making microorganisms move");
         microbiome->initiateMicroorganismMovement();
 
-        logger->log("entity ids after movement: " + getListOfEntityIds(microbiome));
+        logger->log("entity ids after movement: " + microbiome->getListOfEntityIds());
 
         if (config->isMicroorganismReproductionEnabled()) {
             logger->log("Making microorganisms reproduce");
             microbiome->initiateMicroorganismReproduction();
         }
 
-        logger->log("entity ids after reproduction: " + getListOfEntityIds(microbiome));
+        logger->log("entity ids after reproduction: " + microbiome->getListOfEntityIds());
 
         // microbiome->purgeMicroorganismsNotInEnvironment();
 
