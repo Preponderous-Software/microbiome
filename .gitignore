@@ -1,1 +1,5 @@
 mb_app
+tests
+log.mbapp.txt
+log.microbiome.txt
+log.simulation.txt

@@ -2,10 +2,19 @@
 #include "header/result.h"
 
 MicrobiomeApplication::MicrobiomeApplication() {
+    logger = new Logger("log.mbapp.txt");
+    logger->log("Creating MicrobiomeApplication");
     config = AppConfig();
 }
 
+MicrobiomeApplication::~MicrobiomeApplication() {
+    logger->log("Destroying MicrobiomeApplication");
+    delete logger;
+}
+
 bool MicrobiomeApplication::run() {
+    logger->log("Starting Microbiome Application");
+
     // run simulations
     for (int i = 0; i < config.getNumSimulations(); i++) {
         std::cout << "Running simulation " << i + 1 << " of " << config.getNumSimulations() << std::endl;

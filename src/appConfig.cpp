@@ -47,3 +47,11 @@ bool AppConfig::isSimulationOutputEnabled() {
 void AppConfig::setSimulationOutputEnabled(bool simulationOutputEnabled) {
     this->simulationOutputEnabled = simulationOutputEnabled;
 }
+
+bool AppConfig::isMicroorganismReproductionEnabled() {
+    return microorganismReproductionEnabled;
+}
+
+void AppConfig::setMicroorganismReproductionEnabled(bool microorganismReproductionEnabled) {
+    this->microorganismReproductionEnabled = microorganismReproductionEnabled;
+}

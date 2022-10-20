@@ -22,6 +22,9 @@ class Microorganism : public Entity {
         void incrementTimesMoved();
         void incrementTimesEaten();
         bool isDead();
+        void setReproductionThreshold(int reproductionThreshold);
+        int getReproductionThreshold();
+        bool canReproduce();
     private:
         int maxEnergy = 200;
         int maxMetabolicRateFactor = 5;
@@ -30,6 +33,7 @@ class Microorganism : public Entity {
         int metabolicRate = rand() % maxMetabolicRateFactor + 1;
         int timesMoved = 0;
         int timesEaten = 0;
+        int reproductionThreshold = 100;
 };
 
 #endif

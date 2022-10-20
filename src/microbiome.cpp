@@ -2,36 +2,68 @@
 #include "header/microbiome.h"
 
 Microbiome::Microbiome(int id, std::string name, int size, int entityFactor) : Environment(id, name, size) {
+    logger = new Logger("log.microbiome.txt");
+    logger->log("Creating Microbiome");
     generateMicroorganisms(size * entityFactor);
     addMicroorganismsToEnvironment();
 }
 
+Microbiome::~Microbiome() {
+    logger->log("Destroying Microbiome '" + getName() + "'");
+    delete logger;
+}
+
 void Microbiome::generateMicroorganisms(int numMicroorganisms) {
     for (int i = 0; i < numMicroorganisms; i++) {
-        Microorganism microorganism(i, "test");
+        logger->log("Generating microorganism " + std::to_string(i));
+        Microorganism microorganism = microorganismFactory.createMicroorganism();
+        logger->log("Adding microorganism " + std::to_string(i) + " to microorganisms vector");
         microorganisms.push_back(microorganism);
     }
 }
 
 void Microbiome::addMicroorganismsToEnvironment() {
     for (Microorganism& microorganism : microorganisms) {
+        logger->log("Adding microorganism " + std::to_string(microorganism.getId()) + " to environment");
         addEntity(microorganism);
     }
 }
 
 void Microbiome::initiateMicroorganismMovement() {
+    logger->log("Initiating microorganism movement");
     for (int i = 0; i < microorganisms.size(); i++) {
         Microorganism& microorganism = microorganisms[i];
+        logger->log("Moving microorganism " + std::to_string(microorganism.getId()));
+
+        // check if microorganism is alive
         if (microorganism.isDead()) {
+            logger->log("Microorganism " + std::to_string(microorganism.getId()) + " is dead");
             continue;
         }
-        Microorganism& retrievedMicroorganism = (Microorganism&) getEntity(microorganism.getId());     
-        moveEntityToRandomAdjacentLocation(retrievedMicroorganism.getId());
-        retrievedMicroorganism.incrementTimesMoved();
-        retrievedMicroorganism.metabolize();
+        else {
+            logger->log("Microorganism " + std::to_string(microorganism.getId()) + " is alive");
+        }
+
+        // check if microorganism is in environment
+        if (isMicroorganismPresent(microorganism.getId())) {
+            logger->log("Microorganism " + std::to_string(microorganism.getId()) + " is in environment");
+        }
+        else {
+            logger->log("Microorganism " + std::to_string(microorganism.getId()) + " is not in environment");
+            continue;
+        }
+
+        logger->log("Invoking env-lib-cpp moveEntityToRandomAdjacentLocation() method");
+        moveEntityToRandomAdjacentLocation(microorganism.getId());
+        logger->log("env-lib-cpp moveEntityToRandomAdjacentLocation() method invoked");
+        microorganism.incrementTimesMoved();
+        logger->log("Microorganism " + std::to_string(microorganism.getId()) + " has moved " + std::to_string(microorganism.getTimesMoved()) + " times");
+
+        microorganism.metabolize();
+        logger->log("Microorganism " + std::to_string(microorganism.getId()) + " has " + std::to_string(microorganism.getEnergy()) + " energy");
 
         if (deadMicroorganismConsumptionEnabled) {
-            initiateConsumptionOfDeadMicroorganisms(retrievedMicroorganism);
+            initiateConsumptionOfDeadMicroorganisms(microorganism);
         }
     }
 }
@@ -117,8 +149,24 @@ void Microbiome::printConsoleRepresentation() {
     std::cout << std::endl;
 }
 
-void Microbiome::removeEntity(Entity& entity) {
-    Environment::removeEntity(entity);
+void Microbiome::addMicroorganism(Microorganism& microorganism) {
+    logger->log("Adding microorganism " + std::to_string(microorganism.getId()));
+    Environment::addEntity(microorganism);
+    microorganisms.push_back(microorganism);
+}
+
+void Microbiome::removeMicroorganism(Microorganism& microorganism) {
+    logger->log("Removing microorganism " + std::to_string(microorganism.getId()));
+    Environment::removeEntity(microorganism);
+
+    // // remove from microorganisms vector
+    // for (int i = 0; i < microorganisms.size(); i++) { // TODO: fix
+    //     Microorganism& retrievedMicroorganism = microorganisms[i];
+    //     if (retrievedMicroorganism.getId() == microorganism.getId()) {
+    //         microorganisms.erase(microorganisms.begin() + i);
+    //         break;
+    //     }
+    // }
 }
 
 std::vector<Microorganism> Microbiome::getMicroorganisms() {
@@ -175,4 +223,67 @@ void Microbiome::purgeMicroorganismsNotInEnvironment() {
             }
         }
     }
+}
+
+Microorganism& Microbiome::getMicroorganismById(int id) {
+    for (Location& location : getGrid()->getLocations()) {
+        std::vector<Entity*> entities = location.getEntities();
+        for (Entity* entity : entities) {
+            Microorganism& microorganism = (Microorganism&) *entity;
+            if (microorganism.getId() == id) {
+                return microorganism;
+            }
+        }
+    }
+    throw std::invalid_argument("Microorganism with id " + std::to_string(id) + " not found");
+}
+
+bool Microbiome::isMicroorganismPresent(int id) {
+    try {
+        getMicroorganismById(id);
+        return true;
+    }
+    catch (std::invalid_argument& e) {
+        return false;
+    }
+}
+
+void Microbiome::initiateMicroorganismReproduction() {
+    logger->log("Initiating microorganism reproduction");
+    std::vector<Microorganism> microorganismsToAdd;
+    for (int i = 0; i < microorganisms.size(); i++) {
+        Microorganism& microorganism = microorganisms[i];
+        logger->log("Checking microorganism " + std::to_string(microorganism.getId()));
+        if (microorganism.isDead()) {
+            logger->log("Microorganism " + std::to_string(microorganism.getId()) + " is dead");
+            continue;
+        }
+        
+        // check if microorganism has enough energy to reproduce
+        if (!microorganism.canReproduce()) {
+            logger->log("Microorganism " + std::to_string(microorganism.getId()) + " does not have enough energy to reproduce");
+            continue;
+        }
+
+        // intitiate reproduction
+        logger->log("Microorganism " + std::to_string(microorganism.getId()) + " is initiating reproduction");
+        Microorganism child = createOffspring(microorganism);
+        logger->log("Microorganism " + std::to_string(microorganism.getId()) + " spawned offspring " + std::to_string(child.getId()));
+        microorganismsToAdd.push_back(child);
+    }
+    
+    // add children
+    for (Microorganism& child : microorganismsToAdd) {
+        logger->log("Adding child microorganism " + std::to_string(child.getId()));
+        addMicroorganism(child); // TODO: add microorganism to same location as parent
+    }
+}
+
+Microorganism Microbiome::createOffspring(Microorganism& parent) {
+    Microorganism child = microorganismFactory.createMicroorganism();
+    child.setEnergy(parent.getEnergy() / 2);
+    child.setMetabolicRate(parent.getMetabolicRate());
+    child.setReproductionThreshold(parent.getReproductionThreshold());
+    parent.setEnergy(parent.getEnergy() / 2);
+    return child;
 }

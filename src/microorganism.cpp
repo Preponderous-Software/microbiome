@@ -43,3 +43,15 @@ int Microorganism::getTimesEaten() {
 void Microorganism::incrementTimesEaten() {
     timesEaten++;
 }
+
+void Microorganism::setReproductionThreshold(int newThreshold) {
+    reproductionThreshold = newThreshold;
+}
+
+int Microorganism::getReproductionThreshold() {
+    return reproductionThreshold;
+}
+
+bool Microorganism::canReproduce() {
+    return energy >= reproductionThreshold;
+}

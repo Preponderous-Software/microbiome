@@ -4,6 +4,7 @@
 #include "appConfig.h"
 #include "simulation.h"
 #include "result.h"
+#include "logger.h"
 
 /**
  * The MicrobiomeApplication class is the main class for the Microbiome application.
@@ -12,11 +13,14 @@
 class MicrobiomeApplication {
     public:
         MicrobiomeApplication();
+        ~MicrobiomeApplication();
         bool run();
     private:
         AppConfig config;
         Simulation* simulation;
         std::vector<Result> results;
+        Logger* logger;
+
         void printResults();
         void printResultAverages();
 };

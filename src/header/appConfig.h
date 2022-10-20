@@ -14,6 +14,7 @@ class AppConfig {
         int getTickLengthInSeconds();
         int getNumSimulations();
         bool isSimulationOutputEnabled();
+        bool isMicroorganismReproductionEnabled();
 
         void setEnvironmentSize(int environmentSize);
         void setEntityFactor(int entityFactor);
@@ -21,13 +22,15 @@ class AppConfig {
         void setTickLengthInSeconds(int tickLengthInSeconds);
         void setNumSimulations(int numSimulations);
         void setSimulationOutputEnabled(bool simulationOutputEnabled);
+        void setMicroorganismReproductionEnabled(bool microorganismReproductionEnabled);
     private:
-        int environmentSize = 10;
-        int entityFactor = 10;
+        int environmentSize = 4;
+        int entityFactor = 1;
         int maxTicks = 120; // set to 0 to run indefinitely until all microorganisms die
         int tickLengthInSeconds = 1; // set to 0 to run as fast as possible
         int numSimulations = 10;
         bool simulationOutputEnabled = true;
+        bool microorganismReproductionEnabled = true;
 };
 
 #endif
