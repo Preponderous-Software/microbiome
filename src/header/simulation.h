@@ -23,10 +23,10 @@ class Simulation {
         void printFinishedStats();
     private:
         bool running = true;
-        int numTicks = 0;
-        Microbiome* microbiome;
-        AppConfig* config;
-        Logger* logger;
+        size_t numTicks = 0;
+        Microbiome* microbiome = nullptr;
+        AppConfig* config = nullptr;
+        Logger* logger = nullptr;
 };
 
 #endif

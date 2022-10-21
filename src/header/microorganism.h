@@ -25,15 +25,18 @@ class Microorganism : public Entity {
         void setReproductionThreshold(int reproductionThreshold);
         int getReproductionThreshold();
         bool canReproduce();
+        int getMetabolicConsumptionFactor();
     private:
-        int maxEnergy = 200;
-        int maxMetabolicRateFactor = 5;
-        int minimumEnergy = 100;
+        int maxEnergy = 100;
+        int maxMetabolicRateFactor = 10;
+        int minimumEnergy = 80;
         int energy = rand() % (maxEnergy - minimumEnergy) + minimumEnergy + 1;
         int metabolicRate = rand() % maxMetabolicRateFactor + 1;
         int timesMoved = 0;
         int timesEaten = 0;
         int reproductionThreshold = 100;
+        int maxMetabolicConsumptionFactor = 10;
+        int metabolicConsumptionFactor = rand() % maxMetabolicConsumptionFactor + 1;
 };
 
 #endif

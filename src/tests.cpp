@@ -15,14 +15,15 @@
 #include "header/microbiome.h"
 #include "header/microorganismFactory.h"
 
+Logger logger("log.tests.txt");
+
 void testTemplate() {
-    std::cout << "Test 0 - Template";
+    std::cout << "Test 0 - Template" << std::endl;
     assert(true);
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testConfigSettersAndGetters() {
-    std::cout << "Test 1 - AppConfig";
+    std::cout << "Test 1 - AppConfig" << std::endl;
     
     // create a config object
     AppConfig config;
@@ -43,58 +44,51 @@ void testConfigSettersAndGetters() {
     assert(config.getNumSimulations() == 5);
     assert(config.isSimulationOutputEnabled() == true);
 
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testMicroorganismCreation() {
-    std::cout << "Test 2 - Microorganism Creation";
+    std::cout << "Test 2 - Microorganism Creation" << std::endl;
 
     MicroorganismFactory factory;
     Microorganism organism = factory.createMicroorganism();
 
     // assert id and name are expected values
     assert(organism.getId() == 0);
-    assert(organism.getName() == "test name"); 
-
-    std::cout << " --- " << "Success" << std::endl;
+    assert(organism.getName() == "test name");
 }
 
 void testMicroorganismEnergyConsumption() {
-    std::cout << "Test 3 - Microorganism Energy";
+    std::cout << "Test 3 - Microorganism Energy" << std::endl;
     MicroorganismFactory factory;
     Microorganism microorganism = factory.createMicroorganism();
-    int originalEnergy = microorganism.getEnergy();
     microorganism.setEnergy(10);
     assert(microorganism.getEnergy() == 10);
     microorganism.metabolize();
     assert(microorganism.getEnergy() == 10 - microorganism.getMetabolicRate());
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testMicroorganismTimesMoved() {
-    std::cout << "Test 4 - Microorganism Times Moved";
+    std::cout << "Test 4 - Microorganism Times Moved" << std::endl;
     MicroorganismFactory factory;
     Microorganism microorganism = factory.createMicroorganism();
     microorganism.incrementTimesMoved();
     assert(microorganism.getTimesMoved() == 1);
     microorganism.incrementTimesMoved();
     assert(microorganism.getTimesMoved() == 2);
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testMicroorganismTimesEaten() {
-    std::cout << "Test 5 - Microorganism Times Eaten";
+    std::cout << "Test 5 - Microorganism Times Eaten" << std::endl;
     MicroorganismFactory factory;
     Microorganism microorganism = factory.createMicroorganism();
     microorganism.incrementTimesEaten();
     assert(microorganism.getTimesEaten() == 1);
     microorganism.incrementTimesEaten();
     assert(microorganism.getTimesEaten() == 2);
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testMicrobiomeCreation() {
-    std::cout << "Test 6 - Microbiome Creation";
+    std::cout << "Test 6 - Microbiome Creation" << std::endl;
     int id = 0;
     int size = 10;
     int entityFactor = 5;
@@ -103,11 +97,10 @@ void testMicrobiomeCreation() {
     int numEntitiesInEnvironment = microbiome.getNumEntities();
     int numTrackedMicroorganisms = microbiome.getMicroorganisms().size();
     assert(numEntitiesInEnvironment == numTrackedMicroorganisms);
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testAddingMicroorganismToMicrobiome() {
-    std::cout << "Test 7 - Adding Microorganisms to Microbiome";
+    std::cout << "Test 7 - Adding Microorganisms to Microbiome" << std::endl;
     int id = 0;
     int size = 10;
     int entityFactor = 5;
@@ -119,11 +112,10 @@ void testAddingMicroorganismToMicrobiome() {
 
     // verify presence
     assert(microbiome.isMicroorganismPresent(microorganism.getId()));
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testRemovingMicroorganismFromMicrobiome() {
-    std::cout << "Test 8 - Removing Microorganism From Microbiome";
+    std::cout << "Test 8 - Removing Microorganism From Microbiome" << std::endl;
     
     // create microbiome
     int id = 0;
@@ -148,7 +140,15 @@ void testRemovingMicroorganismFromMicrobiome() {
     // verify absence
     assert(!microbiome.isMicroorganismPresent(microorganism.getId()));
 
-    std::cout << " --- " << "Success" << std::endl;
+    // verify that microorganism is no longer in the microorganisms vector
+    std::vector<Microorganism> microorganisms = microbiome.getMicroorganisms();
+    bool microorganismFound = false;
+    for (Microorganism m : microorganisms) {
+        if (m.getId() == microorganism.getId()) {
+            microorganismFound = true;
+        }
+    }
+    assert(!microorganismFound);
 }
 
 void testMicroorganismReproductionEligibilityCheck() {
@@ -158,11 +158,10 @@ void testMicroorganismReproductionEligibilityCheck() {
     microorganism.setEnergy(100);
     microorganism.setReproductionThreshold(50);
     assert(microorganism.canReproduce());
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testMicroorganismReproduction() {
-    std::cout << "Test 10 - Microorganism Reproduction";
+    std::cout << "Test 10 - Microorganism Reproduction" << std::endl;
     MicroorganismFactory factory;
     Microorganism microorganism = factory.createMicroorganism();
     int initialParentId = microorganism.getId();
@@ -186,11 +185,10 @@ void testMicroorganismReproduction() {
 
     // verify parent id hasn't changed
     assert(microorganism.getId() == initialParentId);
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testInitiatingMicroorganismReproductionInMicrobiome() {
-    std::cout << "Test 11 - Initiating Microorganism Reproduction in Microbiome";
+    std::cout << "Test 11 - Initiating Microorganism Reproduction in Microbiome" << std::endl;
     int id = 0;
     int size = 10;
     int entityFactor = 5;
@@ -201,26 +199,23 @@ void testInitiatingMicroorganismReproductionInMicrobiome() {
 
     // initiate reproduction
     microbiome.initiateMicroorganismReproduction();
+    
+    // verify that the number of microorganisms has increased
+    assert(microbiome.getMicroorganisms().size() > initialNumMicroorganisms);
 
-    int expectedNumMicroorganisms = initialNumMicroorganisms * 2;
-    int actualNumMicroorganisms = microbiome.getMicroorganisms().size();
-    assert(expectedNumMicroorganisms == actualNumMicroorganisms);
-
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testSimulationCreation() {
-    std::cout << "Test 12 - Simulation Creation";
+    std::cout << "Test 12 - Simulation Creation" << std::endl;
     AppConfig config;
     int id = 0;
     std::string name = "Test Simulation";
     Simulation simulation(&config, id, name);
     assert(simulation.getTicksElapsed() == 0);
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testRunningSimulation() {
-    std::cout << "Test 13 - Running Simulation";
+    std::cout << "Test 13 - Running Simulation" << std::endl;
     AppConfig config;
     config.setTickLengthInSeconds(0);
     config.setSimulationOutputEnabled(false);
@@ -229,11 +224,10 @@ void testRunningSimulation() {
     Simulation simulation(&config, id, name);
     simulation.run();
     assert(simulation.getTicksElapsed() <= config.getMaxTicks());
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void testSimulationResults() {
-    std::cout << "Test 14 - Simulation Results";
+    std::cout << "Test 14 - Simulation Results" << std::endl;
     AppConfig config;
     config.setTickLengthInSeconds(0);
     config.setSimulationOutputEnabled(false);
@@ -246,7 +240,6 @@ void testSimulationResults() {
     assert(result.getDeadMicroorganisms() == simulation.getDeadMicroorganisms());
     assert(result.getEnergy() == simulation.getEnergy());
     assert(result.getTicksElapsed() == simulation.getTicksElapsed());
-    std::cout << " --- " << "Success" << std::endl;
 }
 
 void seedRandomNumberGenerator() {

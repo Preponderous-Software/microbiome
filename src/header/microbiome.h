@@ -32,12 +32,13 @@ class Microbiome : public Environment {
         Microorganism createOffspring(Microorganism& parent);
         std::string getListOfEntityIds();
     private:
-        void generateMicroorganisms(int numMicroorganisms);
+        void generateMicroorganisms(size_t numMicroorganisms);
         void addMicroorganismsToEnvironment();
         void initiateConsumptionOfDeadMicroorganisms(Microorganism& microorganism);
+        void checkForEntityIdMismatch();
         
         std::vector<Microorganism> microorganisms;
-        Logger* logger;
+        Logger* logger = nullptr;
         MicroorganismFactory microorganismFactory;
         
         // microbiome config options

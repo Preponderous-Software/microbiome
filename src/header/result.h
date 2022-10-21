@@ -17,10 +17,10 @@ class Result {
         int getTicksElapsed();
         void print();
     private:
-        int survivingMicroorganisms;
-        int deadMicroorganisms;
-        int energy;
-        int ticksElapsed;
+        int survivingMicroorganisms = -1;
+        int deadMicroorganisms = -1;
+        int energy = -1;
+        int ticksElapsed = -1;
 };
 
 #endif

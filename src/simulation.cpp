@@ -24,7 +24,7 @@ Simulation::~Simulation() {
 
 void Simulation::run() {
     if (config->isSimulationOutputEnabled()) {
-        system("clear");
+        // system("clear");
         microbiome->printConsoleRepresentation();
         printRunningStats();
     }
@@ -54,7 +54,7 @@ void Simulation::run() {
         // microbiome->purgeMicroorganismsNotInEnvironment();
 
         if (config->isSimulationOutputEnabled()) {
-            system("clear");
+            // system("clear");
             microbiome->printConsoleRepresentation();
             printRunningStats();
         }
@@ -72,8 +72,8 @@ void Simulation::run() {
 void Simulation::printRunningStats() {
     std::cout << "Name: " << microbiome->getName() << std::endl;
     std::cout << "Size: " << microbiome->getGrid()->getSize() << "x" << microbiome->getGrid()->getSize() << std::endl;
-    std::cout << "Microorganisms: " << microbiome->getNumAliveMicroorganisms() << std::endl;
-    std::cout << "Dead Microorganisms: " << microbiome->getNumDeadMicroorganisms() << "\n";
+    std::cout << "Microbes: " << microbiome->getNumAliveMicroorganisms() << std::endl;
+    std::cout << "Dead Microbe Biomatter: " << microbiome->getNumDeadMicroorganisms() << "\n";
     std::cout << "Total Energy: " << microbiome->getTotalEnergy() << "\n";
     std::cout << "" << std::endl;
     if (config->getMaxTicks() > 0) {
@@ -88,8 +88,8 @@ void Simulation::printFinishedStats() {
     std::cout << "" << std::endl;
     std::cout << "=== Simulation Complete ===" << std::endl;
     std::cout << "Locations: " << microbiome->getGrid()->getLocations().size() << "\n";
-    std::cout << "Surviving Microorganisms: " << microbiome->getNumAliveMicroorganisms() << "\n";
-    std::cout << "Dead Microorganisms: " << microbiome->getNumDeadMicroorganisms() << "\n";
+    std::cout << "Surviving Microbes: " << microbiome->getNumAliveMicroorganisms() << "\n";
+    std::cout << "Dead Microbe Biomatter: " << microbiome->getNumDeadMicroorganisms() << "\n";
     std::cout << "Total Energy: " << microbiome->getTotalEnergy() << "\n";
     std::cout << "Ticks elapsed: " << numTicks << std::endl;
 }

@@ -1,4 +1,6 @@
 #include <vector>
+#include <iomanip>
+#include <set>
 #include "header/microbiome.h"
 
 Microbiome::Microbiome(int id, std::string name, int size, int entityFactor) : Environment(id, name, size) {
@@ -13,8 +15,8 @@ Microbiome::~Microbiome() {
     delete logger;
 }
 
-void Microbiome::generateMicroorganisms(int numMicroorganisms) {
-    for (int i = 0; i < numMicroorganisms; i++) {
+void Microbiome::generateMicroorganisms(size_t numMicroorganisms) {
+    for (size_t i = 0; i < numMicroorganisms; i++) {
         logger->log("Generating microorganism " + std::to_string(i));
         Microorganism microorganism = microorganismFactory.createMicroorganism();
         logger->log("Adding microorganism " + std::to_string(i) + " to microorganisms vector");
@@ -31,7 +33,7 @@ void Microbiome::addMicroorganismsToEnvironment() {
 
 void Microbiome::initiateMicroorganismMovement() {
     logger->log("Initiating microorganism movement");
-    for (int i = 0; i < microorganisms.size(); i++) {
+    for (size_t i = 0; i < microorganisms.size(); i++) {
         Microorganism& microorganism = microorganisms[i];
         logger->log("Moving microorganism " + std::to_string(microorganism.getId()));
 
@@ -81,7 +83,7 @@ void Microbiome::initiateConsumptionOfDeadMicroorganisms(Microorganism& microorg
 
     // iterate through entities to check for the presence of a dead microorganism
     Entity* toRemove = nullptr;
-    for (int i = 0; i < entities.size(); i++) {
+    for (size_t i = 0; i < entities.size(); i++) {
         Entity* entity = entities[i];
         if (entity->getId() == microorganism.getId()) {
             continue;
@@ -94,14 +96,16 @@ void Microbiome::initiateConsumptionOfDeadMicroorganisms(Microorganism& microorg
             // increase energy
             int energy = microorganism.getEnergy();
             int metabolicRate = microorganism.getMetabolicRate();
-            microorganism.setEnergy(energy + metabolicRate * 2);
+            int metabolicConsumptionFactor = microorganism.getMetabolicConsumptionFactor();
+            microorganism.setEnergy(energy + metabolicRate * metabolicConsumptionFactor);
             break;
         }
     }
 
     // remove dead microorganism
     if (toRemove != nullptr) {
-        removeEntity(*toRemove);
+        Microorganism& microorganismToRemove = (Microorganism&) *toRemove;
+        removeMicroorganism(microorganismToRemove);
     }
 }
 
@@ -109,8 +113,8 @@ void Microbiome::printConsoleRepresentation() {
     // generate line with the width of the environment
     std::cout << "" << std::endl;
     std::string line = "";
-    int numDashes = getGrid()->getSize();
-    for (int i = 0; i < numDashes * 3; i++) {
+    size_t numDashes = getGrid()->getSize();
+    for (size_t i = 0; i < numDashes * 3; i++) {
         line += "=";
     }
     std::cout << line << std::endl;
@@ -152,24 +156,32 @@ void Microbiome::printConsoleRepresentation() {
 void Microbiome::addMicroorganism(Microorganism& microorganism) {
     logger->log("Adding microorganism " + std::to_string(microorganism.getId()));
     logger->log("entity ids before adding microorganism: " + getListOfEntityIds());
+
     microorganisms.push_back(microorganism);
     logger->log("entity ids after pushing back but not adding to environment: " + getListOfEntityIds());
+    
     Environment::addEntity(microorganism);
     logger->log("entity ids after adding microorganism: " + getListOfEntityIds());
+
+    checkForEntityIdMismatch();
 }
 
 void Microbiome::removeMicroorganism(Microorganism& microorganism) {
-    logger->log("Removing microorganism " + std::to_string(microorganism.getId()));
+    logger->log("Removing microorganism " + std::to_string(microorganism.getId()) + " from environment");
     Environment::removeEntity(microorganism);
 
-    // // remove from microorganisms vector
-    // for (int i = 0; i < microorganisms.size(); i++) { // TODO: fix
-    //     Microorganism& retrievedMicroorganism = microorganisms[i];
-    //     if (retrievedMicroorganism.getId() == microorganism.getId()) {
-    //         microorganisms.erase(microorganisms.begin() + i);
-    //         break;
-    //     }
-    // }
+    // re-create microorganisms vector without removed microorganism
+    logger->log("Re-creating microorganisms vector without removed microorganism");
+    std::vector<Microorganism> newMicroorganisms;
+    for (Microorganism& currentMicroorganism : microorganisms) {
+        logger->log("Checking microorganism " + std::to_string(currentMicroorganism.getId()));
+        if (currentMicroorganism.getId() != microorganism.getId()) {
+            logger->log("Microorganism " + std::to_string(currentMicroorganism.getId()) + " is not the microorganism to remove");
+            newMicroorganisms.push_back(currentMicroorganism);
+        }
+    }
+    logger->log("Re-created microorganisms vector without removed microorganism");
+    microorganisms = newMicroorganisms;
 }
 
 std::vector<Microorganism>& Microbiome::getMicroorganisms() {
@@ -229,24 +241,28 @@ void Microbiome::purgeMicroorganismsNotInEnvironment() {
 }
 
 Microorganism& Microbiome::getMicroorganismById(int id) {
+    logger->log("Getting microorganism with id " + std::to_string(id));
     for (Location& location : getGrid()->getLocations()) {
         std::vector<Entity*> entities = location.getEntities();
         for (Entity* entity : entities) {
             Microorganism& microorganism = (Microorganism&) *entity;
             if (microorganism.getId() == id) {
+                logger->log("Found microorganism with id " + std::to_string(id));
                 return microorganism;
             }
         }
     }
-    throw std::invalid_argument("Microorganism with id " + std::to_string(id) + " not found");
+    logger->log("Could not find microorganism with id " + std::to_string(id));
+    throw new std::runtime_error("Microorganism with id " + std::to_string(id) + " not found");
 }
 
 bool Microbiome::isMicroorganismPresent(int id) {
+    logger->log("Checking if microorganism with id " + std::to_string(id) + " is present");
     try {
         getMicroorganismById(id);
         return true;
     }
-    catch (std::invalid_argument& e) {
+    catch (std::runtime_error* e) {
         return false;
     }
 }
@@ -255,7 +271,7 @@ void Microbiome::initiateMicroorganismReproduction() {
     logger->log("Initiating microorganism reproduction");
     logger->log("entity ids before: " + getListOfEntityIds());
     std::vector<Microorganism> microorganismsToAdd;
-    for (int i = 0; i < microorganisms.size(); i++) {
+    for (size_t i = 0; i < microorganisms.size(); i++) {
         Microorganism& microorganism = microorganisms[i];
         logger->log("Checking microorganism " + std::to_string(microorganism.getId()));
         if (microorganism.isDead()) {
@@ -302,4 +318,54 @@ std::string Microbiome::getListOfEntityIds() {
         }
     }
     return toReturn.substr(0, toReturn.size() - 2);
+}
+
+void Microbiome::checkForEntityIdMismatch() {
+    // get microorganism ids
+    std::vector<int> microorganismIds;
+    for (Microorganism& microorganism : microorganisms) {
+        microorganismIds.push_back(microorganism.getId());
+    }
+
+    // get entities from all locations
+    std::vector<Entity*> entities;
+    for (Location& location : getGrid()->getLocations()) {
+        for (Entity* entity : location.getEntities()) {
+            entities.push_back(entity);
+        }
+    }
+
+    // create sets for entity and microorganism ids
+    std::set<int> entityIds;
+    std::set<int> microorganismIdsSet;
+    for (Entity* entity : entities) {
+        entityIds.insert(entity->getId());
+    }
+    for (Microorganism& microorganism : microorganisms) {
+        microorganismIdsSet.insert(microorganism.getId());
+    }
+    bool entityIdsEqualsMicroorganismIds = entityIds == microorganismIdsSet;
+    if (!entityIdsEqualsMicroorganismIds) {
+        logger->log("Entity ids and microorganism ids are not equal");
+        logger->log("entity ids: " + getListOfEntityIds());
+        std::string listOfMicroorganismIds = "";
+        for (int id : microorganismIds) {
+            listOfMicroorganismIds += std::to_string(id) + ", ";
+        }
+        logger->log("microorganism ids: " + listOfMicroorganismIds);
+
+        // get difference
+        std::vector<int> difference;
+        for (int id : microorganismIds) {
+            if (entityIds.find(id) == entityIds.end()) {
+                difference.push_back(id);
+            }
+        }
+        std::string listOfDifference = "";
+        for (int id : difference) {
+            listOfDifference += std::to_string(id) + ", ";
+        }
+        logger->log("difference: " + listOfDifference);
+        throw new std::runtime_error("Entity ids not equal microorganism ids");
+    }
 }

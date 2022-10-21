@@ -55,3 +55,7 @@ int Microorganism::getReproductionThreshold() {
 bool Microorganism::canReproduce() {
     return energy >= reproductionThreshold;
 }
+
+int Microorganism::getMetabolicConsumptionFactor() {
+    return metabolicConsumptionFactor;
+}

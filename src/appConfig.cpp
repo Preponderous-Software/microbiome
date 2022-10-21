@@ -1,42 +1,42 @@
 #include "header/appConfig.h"
 
-int AppConfig::getEnvironmentSize() {
+size_t AppConfig::getEnvironmentSize() {
     return environmentSize;
 }
 
-void AppConfig::setEnvironmentSize(int environmentSize) {
+void AppConfig::setEnvironmentSize(size_t environmentSize) {
     this->environmentSize = environmentSize;
 }
 
-int AppConfig::getEntityFactor() {
+size_t AppConfig::getEntityFactor() {
     return entityFactor;
 }
 
-void AppConfig::setEntityFactor(int entityFactor) {
+void AppConfig::setEntityFactor(size_t entityFactor) {
     this->entityFactor = entityFactor;
 }
 
-int AppConfig::getMaxTicks() {
+size_t AppConfig::getMaxTicks() {
     return maxTicks;
 }
 
-void AppConfig::setMaxTicks(int maxTicks) {
+void AppConfig::setMaxTicks(size_t maxTicks) {
     this->maxTicks = maxTicks;
 }
 
-int AppConfig::getTickLengthInSeconds() {
+size_t AppConfig::getTickLengthInSeconds() {
     return tickLengthInSeconds;
 }
 
-void AppConfig::setTickLengthInSeconds(int tickLengthInSeconds) {
+void AppConfig::setTickLengthInSeconds(size_t tickLengthInSeconds) {
     this->tickLengthInSeconds = tickLengthInSeconds;
 }
 
-int AppConfig::getNumSimulations() {
+size_t AppConfig::getNumSimulations() {
     return numSimulations;
 }
 
-void AppConfig::setNumSimulations(int numSimulations) {
+void AppConfig::setNumSimulations(size_t numSimulations) {
     this->numSimulations = numSimulations;
 }
 
