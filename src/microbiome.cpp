@@ -162,8 +162,6 @@ void Microbiome::addMicroorganism(Microorganism& microorganism) {
     
     Environment::addEntity(microorganism);
     logger->log("entity ids after adding microorganism: " + getListOfEntityIds());
-
-    checkForEntityIdMismatch();
 }
 
 void Microbiome::removeMicroorganism(Microorganism& microorganism) {
@@ -231,7 +229,7 @@ Microorganism& Microbiome::getMicroorganismById(int id) {
             }
         }
     }
-    logger->log("Could not find microorganism with id " + std::to_string(id));
+    logger->log("ERROR: Could not find microorganism with id " + std::to_string(id));
     throw new std::runtime_error("Microorganism with id " + std::to_string(id) + " not found");
 }
 
@@ -325,7 +323,7 @@ void Microbiome::checkForEntityIdMismatch() {
     }
     bool entityIdsEqualsMicroorganismIds = entityIds == microorganismIdsSet;
     if (!entityIdsEqualsMicroorganismIds) {
-        logger->log("Entity ids and microorganism ids are not equal");
+        logger->log("ERROR: Entity ids and microorganism ids are not equal");
         logger->log("entity ids: " + getListOfEntityIds());
         std::string listOfMicroorganismIds = "";
         for (int id : microorganismIds) {
@@ -346,5 +344,33 @@ void Microbiome::checkForEntityIdMismatch() {
         }
         logger->log("difference: " + listOfDifference);
         throw new std::runtime_error("Entity ids not equal microorganism ids");
+    }
+}
+
+void Microbiome::checkForAmountMismatchBetweenEntitiesAndMicroorganisms() {
+    // get microorganism ids
+    std::vector<int> microorganismIds;
+    for (Microorganism& microorganism : microorganisms) {
+        microorganismIds.push_back(microorganism.getId());
+    }
+
+    // get entities from all locations
+    std::vector<Entity*> entities;
+    for (Location& location : getGrid()->getLocations()) {
+        for (Entity* entity : location.getEntities()) {
+            entities.push_back(entity);
+        }
+    }
+
+    // check if amount of entities equals amount of microorganisms
+    if (entities.size() != microorganisms.size()) {
+        logger->log("ERROR: Amount of entities does not equal amount of microorganisms");
+        logger->log("entity ids: " + getListOfEntityIds());
+        std::string listOfMicroorganismIds = "";
+        for (int id : microorganismIds) {
+            listOfMicroorganismIds += std::to_string(id) + ", ";
+        }
+        logger->log("microorganism ids: " + listOfMicroorganismIds);
+        throw new std::runtime_error("Amount of entities does not equal amount of microorganisms");
     }
 }

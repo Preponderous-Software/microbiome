@@ -64,6 +64,10 @@ void Simulation::run() {
         if (microbiome->getNumAliveMicroorganisms() == 0) {
             running = false;
         }
+
+        // initiate checks
+        microbiome->checkForEntityIdMismatch();
+        microbiome->checkForAmountMismatchBetweenEntitiesAndMicroorganisms();
     }
 }
 
@@ -80,6 +84,13 @@ void Simulation::printRunningStats() {
     else {
         std::cout << "Ticks elapsed: " << numTicks << std::endl;
     }
+
+    // print number of entities in environment
+    std::cout << "Entities in environment: " << microbiome->getNumEntities() << std::endl;
+
+    // print number of microorganisms in vector
+    std::cout << "Microorganisms in vector: " << microbiome->getMicroorganisms().size() << std::endl;
+    
 }
 
 void Simulation::printFinishedStats() {
