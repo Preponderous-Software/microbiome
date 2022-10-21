@@ -227,7 +227,7 @@ bool Microbiome::isMicroorganismPresent(int id) {
         getMicroorganismById(id);
         return true;
     }
-    catch(std::runtime_error* e) {
+    catch(const std::runtime_error* e) {
         return false;
     }
 }
