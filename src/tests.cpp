@@ -195,7 +195,7 @@ void testInitiatingMicroorganismReproductionInMicrobiome() {
     std::string name = "Test Microbiome";
     Microbiome microbiome(id, name, size, entityFactor);
 
-    int initialNumMicroorganisms = microbiome.getMicroorganisms().size();
+    size_t initialNumMicroorganisms = microbiome.getMicroorganisms().size();
 
     // initiate reproduction
     microbiome.initiateMicroorganismReproduction();

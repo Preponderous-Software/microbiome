@@ -32,7 +32,7 @@ class AppConfig {
         size_t tickLengthInSeconds = 0; // set to 0 to run as fast as possible
         size_t numSimulations = 10;
         bool simulationOutputEnabled = true;
-        bool microorganismReproductionEnabled = true; // for debugging purposes
+        bool microorganismReproductionEnabled = false; // for debugging purposes
 };
 
 #endif
