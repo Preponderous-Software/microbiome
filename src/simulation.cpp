@@ -51,8 +51,6 @@ void Simulation::run() {
 
         logger->log("entity ids after reproduction: " + microbiome->getListOfEntityIds());
 
-        // microbiome->purgeMicroorganismsNotInEnvironment();
-
         if (config->isSimulationOutputEnabled()) {
             // system("clear");
             microbiome->printConsoleRepresentation();

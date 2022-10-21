@@ -219,27 +219,6 @@ int Microbiome::getTotalEnergy() {
     return totalEnergy;
 }
 
-void Microbiome::purgeMicroorganismsNotInEnvironment() {
-    std::vector<Microorganism*> microorganismsToRemove;
-    for (Microorganism& microorganism : microorganisms) {
-        if (microorganism.getEnvironmentId() == -1) {
-            microorganismsToRemove.push_back(&microorganism);
-        }
-    }
-    // use iterator to remove elements
-    for (Microorganism* microorganism : microorganismsToRemove) {
-        std::vector<Microorganism>::iterator iterator = microorganisms.begin();
-        while (iterator != microorganisms.end()) {
-            if (iterator->getId() == microorganism->getId()) {
-                iterator = microorganisms.erase(iterator);
-            }
-            else {
-                iterator++;
-            }
-        }
-    }
-}
-
 Microorganism& Microbiome::getMicroorganismById(int id) {
     logger->log("Getting microorganism with id " + std::to_string(id));
     for (Location& location : getGrid()->getLocations()) {
