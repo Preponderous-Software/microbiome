@@ -135,7 +135,7 @@ void testRemovingMicroorganismFromMicrobiome() {
     assert(microbiome.isMicroorganismPresent(microorganism.getId()));
 
     // remove microorganism from microbiome
-    microbiome.removeMicroorganism(microorganism);
+    microbiome.removeMicroorganism(microorganism.getId());
 
     // verify absence
     assert(!microbiome.isMicroorganismPresent(microorganism.getId()));
@@ -152,7 +152,7 @@ void testRemovingMicroorganismFromMicrobiome() {
 }
 
 void testMicroorganismReproductionEligibilityCheck() {
-    std::cout << "Test 9 - Microorganism Reproduction Eligibility Check";
+    std::cout << "Test 9 - Microorganism Reproduction Eligibility Check" << std::endl;
     MicroorganismFactory factory;
     Microorganism microorganism = factory.createMicroorganism();
     microorganism.setEnergy(100);
@@ -247,23 +247,74 @@ void seedRandomNumberGenerator() {
 }
 
 int main() {
+    logger.log("Starting Tests");
     // seed RNG
     seedRandomNumberGenerator();
     
     // tests
-    testConfigSettersAndGetters();
-    testMicroorganismCreation();
-    testMicroorganismEnergyConsumption();
-    testMicroorganismTimesMoved();
-    testMicroorganismTimesEaten();
-    testMicrobiomeCreation();
-    testAddingMicroorganismToMicrobiome();
-    testRemovingMicroorganismFromMicrobiome();
-    testMicroorganismReproductionEligibilityCheck();
-    testMicroorganismReproduction();
-    testInitiatingMicroorganismReproductionInMicrobiome();
-    testSimulationCreation();
-    testRunningSimulation();
-    testSimulationResults();
+    int testIndex = 1;
+    try {
+        testConfigSettersAndGetters();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Config Setters and Getters' Passed");
+        testIndex++;
+
+        testMicroorganismCreation();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Microorganism Creation' Passed");
+        testIndex++;
+
+        testMicroorganismEnergyConsumption();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Microorganism Energy Consumption' Passed");
+        testIndex++;
+
+        testMicroorganismTimesMoved();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Microorganism Times Moved' Passed");
+        testIndex++;
+
+        testMicroorganismTimesEaten();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Microorganism Times Eaten' Passed");
+        testIndex++;
+
+        testMicrobiomeCreation();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Microbiome Creation' Passed");
+        testIndex++;
+
+        testAddingMicroorganismToMicrobiome();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Adding Microorganism to Microbiome' Passed");
+        testIndex++;
+
+        testRemovingMicroorganismFromMicrobiome();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Removing Microorganism from Microbiome' Passed");
+        testIndex++;
+
+        testMicroorganismReproductionEligibilityCheck();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Microorganism Reproduction Eligibility Check' Passed");
+        testIndex++;
+
+        testMicroorganismReproduction();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Microorganism Reproduction' Passed");
+        testIndex++;
+
+        testInitiatingMicroorganismReproductionInMicrobiome();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Initiating Microorganism Reproduction in Microbiome' Passed");
+        testIndex++;
+
+        testSimulationCreation();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Simulation Creation' Passed");
+        testIndex++;
+
+        testRunningSimulation();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Running Simulation' Passed");
+        testIndex++;
+
+        testSimulationResults();
+        logger.log("Test " + std::to_string(testIndex) + " - 'Simulation Results' Passed");
+        testIndex++;
+        
+        logger.log("Tests Complete");
+    } catch (const std::runtime_error* e) {
+        std::cout << "Test " + std::to_string(testIndex) + " failed: " << e->what() << std::endl;
+        logger.log("Test " + std::to_string(testIndex) + " failed: " + std::string(e->what()));
+    }
+
     return 0;
 }

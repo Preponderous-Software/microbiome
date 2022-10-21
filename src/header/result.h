@@ -14,13 +14,13 @@ class Result {
         int getSurvivingMicroorganisms();
         int getDeadMicroorganisms();
         int getEnergy();
-        int getTicksElapsed();
+        size_t getTicksElapsed();
         void print();
     private:
         int survivingMicroorganisms = -1;
         int deadMicroorganisms = -1;
         int energy = -1;
-        int ticksElapsed = -1;
+        size_t ticksElapsed = -1;
 };
 
 #endif

@@ -18,7 +18,7 @@ class Simulation {
         int getSurvivingMicroorganisms();
         int getDeadMicroorganisms();
         int getEnergy();
-        int getTicksElapsed();
+        size_t getTicksElapsed();
         void printRunningStats();
         void printFinishedStats();
     private:

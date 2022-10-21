@@ -19,7 +19,7 @@ int Result::getEnergy() {
     return energy;
 }
 
-int Result::getTicksElapsed() {
+size_t Result::getTicksElapsed() {
     return ticksElapsed;
 }
 

@@ -115,6 +115,6 @@ int Simulation::getEnergy() {
     return microbiome->getTotalEnergy();
 }
 
-int Simulation::getTicksElapsed() {
+size_t Simulation::getTicksElapsed() {
     return numTicks;
 }

@@ -17,8 +17,8 @@ class Microbiome : public Environment {
     public:
         Microbiome(int id, std::string name, int size, int entityFactor);
         ~Microbiome();
-        void addMicroorganism(Microorganism& microorganism);
-        void removeMicroorganism(Microorganism& microorganism);
+        void addMicroorganism(Microorganism microorganism);
+        void removeMicroorganism(int id);
         std::vector<Microorganism>& getMicroorganisms();
         void initiateMicroorganismMovement();
         void printConsoleRepresentation();
@@ -34,7 +34,6 @@ class Microbiome : public Environment {
         void checkForAmountMismatchBetweenEntitiesAndMicroorganisms();
     private:
         void generateMicroorganisms(size_t numMicroorganisms);
-        void addMicroorganismsToEnvironment();
         void initiateConsumptionOfDeadMicroorganisms(Microorganism& microorganism);
         
         std::vector<Microorganism> microorganisms;

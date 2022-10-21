@@ -1,10 +1,11 @@
 #include "header/microorganismFactory.h"
 
 MicroorganismFactory::MicroorganismFactory() {
-    this->entityCounter = 0;
+    entityCounter = 0;
 }
 
 Microorganism MicroorganismFactory::createMicroorganism() {
-    Microorganism microorganism(this->entityCounter++, "test name");
+    Microorganism microorganism(entityCounter, "test name");
+    entityCounter++;
     return microorganism;
 }
