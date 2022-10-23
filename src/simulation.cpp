@@ -12,16 +12,18 @@
 Simulation::Simulation(AppConfig* config, int id, std::string name) {
     this->config = config;
     this->microbiome = new Microbiome(id, name, config->getEnvironmentSize(), config->getEntityFactor());
+    this->logger = new Logger("log.simulation.txt");
 }
 
 Simulation::~Simulation() {
     delete microbiome;
+    delete logger;
 }
 
 void Simulation::run() {
+    logger->log("Simulation " + std::to_string(microbiome->getId()) + " started.");
     while (running) {
         microbiome->initiateMicroorganismMovement();
-        // microbiome->purgeMicroorganismsNotInEnvironment();
 
         if (config->isSimulationOutputEnabled()) {
             system("clear");
@@ -32,6 +34,7 @@ void Simulation::run() {
 
         numTicks++;
         if (config->getMaxTicks() > 0 && numTicks >= config->getMaxTicks()) {
+            logger->log("Max ticks reached. Stopping simulation.");
             running = false;
         }
 
@@ -40,6 +43,7 @@ void Simulation::run() {
         }
 
         if (microbiome->getNumAliveMicroorganisms() == 0) {
+            logger->log("All microorganisms are dead. Stopping simulation " + std::to_string(microbiome->getId()) + ".");
             running = false;
         }
     }

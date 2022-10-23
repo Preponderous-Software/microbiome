@@ -4,6 +4,8 @@
 #include "../../env-lib-cpp/src/header/environment.h"
 
 #include "microorganism.h"
+#include "microorganismFactory.h"
+#include "logger.h"
 
 using namespace envlibcpp;
 
@@ -14,6 +16,7 @@ using namespace envlibcpp;
 class Microbiome : public Environment {
     public:
         Microbiome(int id, std::string name, int size, int entityFactor);
+        ~Microbiome();
         void initiateMicroorganismMovement();
         void printConsoleRepresentation();
         void removeEntity(Entity& entity);
@@ -22,12 +25,17 @@ class Microbiome : public Environment {
         int getNumDeadMicroorganisms();
         int getTotalEnergy();
         void purgeMicroorganismsNotInEnvironment();
+        bool isMicroorganismPresent(int id); 
+        void addMicroorganism(Microorganism microorganism);
+        void removeMicroorganism(int id);
     private:
         void generateMicroorganisms(int numMicroorganisms);
         void addMicroorganismsToEnvironment();
         void initiateConsumptionOfDeadMicroorganisms(Microorganism& microorganism);
         
         std::vector<Microorganism> microorganisms;
+        MicroorganismFactory microorganismFactory;
+        Logger* logger;
         
         // microbiome config options
         std::string aliveMicroorganismRepresentation = "o";
