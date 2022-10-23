@@ -8,7 +8,13 @@ Logger::Logger(std::string filename) {
     file.open(filename);
 }
 
+/**
+ * Logs a message to the file if debug is set to true.
+*/
 void Logger::log(std::string message) {
+    if (!debug) {
+        return;
+    }
     // prepare timestamp
     time_t timestamp = time(0);
     char* timestampString = ctime(&timestamp);

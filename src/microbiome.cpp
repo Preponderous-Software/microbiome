@@ -157,10 +157,11 @@ void Microbiome::removeMicroorganism(int id) {
     Microorganism& microorganism = getMicroorganismById(id);
 
     logger->log("Removing microorganism " + std::to_string(id) + " from environment");
-    Environment::removeEntity(microorganism);
+    removeEntity(microorganism);
 
     // re-create microorganisms vector without removed microorganism
     logger->log("Re-creating microorganisms vector without removed microorganism");
+    logger->log("Number of microorganisms before re-creation: " + std::to_string(microorganisms.size()));
     std::vector<Microorganism> newMicroorganisms;
     for (Microorganism& currentMicroorganism : microorganisms) {
         if (currentMicroorganism.getId() != microorganism.getId()) {
@@ -168,6 +169,7 @@ void Microbiome::removeMicroorganism(int id) {
         }
     }
     microorganisms = newMicroorganisms;
+    logger->log("Number of microorganisms after re-creation: " + std::to_string(microorganisms.size()));
 }
 
 std::vector<Microorganism>& Microbiome::getMicroorganisms() {
@@ -234,19 +236,15 @@ bool Microbiome::isMicroorganismPresent(int id) {
 
 void Microbiome::initiateMicroorganismReproduction() {
     logger->log("Initiating microorganism reproduction");
-    logger->log("entity ids before: " + getListOfEntityIds());
     std::vector<Microorganism> microorganismsToAdd;
     for (size_t i = 0; i < microorganisms.size(); i++) {
         Microorganism& microorganism = microorganisms[i];
-        logger->log("Checking microorganism " + std::to_string(microorganism.getId()));
         if (microorganism.isDead()) {
-            logger->log("Microorganism " + std::to_string(microorganism.getId()) + " is dead");
             continue;
         }
         
         // check if microorganism has enough energy to reproduce
         if (!microorganism.canReproduce()) {
-            logger->log("Microorganism " + std::to_string(microorganism.getId()) + " does not have enough energy to reproduce");
             continue;
         }
 
@@ -262,8 +260,6 @@ void Microbiome::initiateMicroorganismReproduction() {
         logger->log("Adding child microorganism " + std::to_string(child.getId()));
         addMicroorganism(child); // TODO: add microorganism to same location as parent
     }
-
-    logger->log("entity ids after: " + getListOfEntityIds());
 }
 
 Microorganism Microbiome::createOffspring(Microorganism& parent) {

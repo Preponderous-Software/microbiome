@@ -13,6 +13,7 @@ class Logger {
     private:
         std::string filename;
         std::ofstream file;
+        bool debug = true;
 };
 
 #endif
