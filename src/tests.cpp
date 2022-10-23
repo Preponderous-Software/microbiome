@@ -129,13 +129,42 @@ void testSimulationResults() {
     std::cout << " --- " << "Success" << std::endl;
 }
 
-// void testRemovingMicroorganismFromMicrobiome() {
-//     std::cout << "Test 9 - Removing Microorganism From Microbiome";
+void testRemovingMicroorganismFromMicrobiome() {
+    std::cout << "Test 9 - Removing Microorganism From Microbiome" << std::endl;
+    
+    // create microbiome
+    int id = 0;
+    int size = 10;
+    int entityFactor = 5;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
 
-//     // TODO: implement
+    // create microorganism
+    MicroorganismFactory factory;
+    Microorganism microorganism = factory.createMicroorganism();
 
-//     std::cout << " --- " << "Success" << std::endl;
-// }
+    // add microorganism to microbiome
+    microbiome.addMicroorganism(microorganism);
+
+    // verify presence
+    assert(microbiome.isMicroorganismPresent(microorganism.getId()));
+
+    // remove microorganism from microbiome
+    microbiome.removeMicroorganism(microorganism.getId());
+
+    // verify absence
+    assert(!microbiome.isMicroorganismPresent(microorganism.getId()));
+
+    // verify that microorganism is no longer in the microorganisms vector
+    std::vector<Microorganism> microorganisms = microbiome.getMicroorganisms();
+    bool microorganismFound = false;
+    for (Microorganism m : microorganisms) {
+        if (m.getId() == microorganism.getId()) {
+            microorganismFound = true;
+        }
+    }
+    assert(!microorganismFound);
+}
 
 void seedRandomNumberGenerator() {
     srand (time (NULL));
@@ -154,6 +183,6 @@ int main() {
     testSimulationCreation();
     testRunningSimulation();
     testSimulationResults();
-    // testRemovingMicroorganismFromMicrobiome();
+    testRemovingMicroorganismFromMicrobiome();
     return 0;
 }

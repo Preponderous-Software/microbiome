@@ -3,6 +3,7 @@
 
 #include "microbiome.h"
 #include "appConfig.h"
+#include "logger.h"
 
 /**
  * The Simulation class represents a simulation of a Microbiome.
@@ -25,6 +26,7 @@ class Simulation {
         int numTicks = 0;
         Microbiome* microbiome;
         AppConfig* config;
+        Logger* logger;
 };
 
 #endif

@@ -2,24 +2,32 @@
 #include "header/microbiome.h"
 
 Microbiome::Microbiome(int id, std::string name, int size, int entityFactor) : Environment(id, name, size) {
+    logger = new Logger("log.microbiome.txt");
     generateMicroorganisms(size * entityFactor);
     addMicroorganismsToEnvironment();
 }
 
+Microbiome::~Microbiome() {
+    delete logger;
+}
+
 void Microbiome::generateMicroorganisms(int numMicroorganisms) {
+    logger->log("Generating " + std::to_string(numMicroorganisms) + " microorganisms...");
     for (int i = 0; i < numMicroorganisms; i++) {
-        Microorganism microorganism(i, "test");
+        Microorganism microorganism = microorganismFactory.createMicroorganism();
         microorganisms.push_back(microorganism);
     }
 }
 
 void Microbiome::addMicroorganismsToEnvironment() {
+    logger->log("Adding microorganisms to environment...");
     for (Microorganism& microorganism : microorganisms) {
         addEntity(microorganism);
     }
 }
 
 void Microbiome::initiateMicroorganismMovement() {
+    logger->log("Initiating microorganism movement...");
     for (int i = 0; i < microorganisms.size(); i++) {
         Microorganism& microorganism = microorganisms[i];
         if (microorganism.isDead()) {
@@ -118,6 +126,7 @@ void Microbiome::printConsoleRepresentation() {
 }
 
 void Microbiome::removeEntity(Entity& entity) {
+    logger->log("Removing entity " + std::to_string(entity.getId()) + " from environment...");
     Environment::removeEntity(entity);
 }
 
@@ -156,23 +165,28 @@ int Microbiome::getTotalEnergy() {
     return totalEnergy;
 }
 
-void Microbiome::purgeMicroorganismsNotInEnvironment() {
-    std::vector<Microorganism*> microorganismsToRemove;
+bool Microbiome::isMicroorganismPresent(int id) {
     for (Microorganism& microorganism : microorganisms) {
-        if (microorganism.getEnvironmentId() == -1) {
-            microorganismsToRemove.push_back(&microorganism);
+        if (microorganism.getId() == id) {
+            return true;
         }
     }
-    // use iterator to remove elements
-    for (Microorganism* microorganism : microorganismsToRemove) {
-        std::vector<Microorganism>::iterator iterator = microorganisms.begin();
-        while (iterator != microorganisms.end()) {
-            if (iterator->getId() == microorganism->getId()) {
-                iterator = microorganisms.erase(iterator);
-            }
-            else {
-                iterator++;
-            }
+    return false;
+}
+
+void Microbiome::addMicroorganism(Microorganism microorganism) {
+    logger->log("Adding microorganism " + std::to_string(microorganism.getId()) + "...");
+    microorganisms.push_back(microorganism);
+}
+
+void Microbiome::removeMicroorganism(int id) {
+    logger->log("Removing microorganism " + std::to_string(id) + "...");
+    // recreate vector without the microorganism
+    std::vector<Microorganism> newMicroorganisms;
+    for (Microorganism& microorganism : microorganisms) {
+        if (microorganism.getId() != id) {
+            newMicroorganisms.push_back(microorganism);
         }
     }
+    microorganisms = newMicroorganisms;
 }
