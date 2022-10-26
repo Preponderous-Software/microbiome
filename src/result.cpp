@@ -7,19 +7,19 @@ Result::Result(Simulation* simulation) {
     ticksElapsed = simulation->getTicksElapsed();
 }
 
-int Result::getSurvivingMicroorganisms() {
+size_t Result::getSurvivingMicroorganisms() {
     return survivingMicroorganisms;
 }
 
-int Result::getDeadMicroorganisms() {
+size_t Result::getDeadMicroorganisms() {
     return deadMicroorganisms;
 }
 
-int Result::getEnergy() {
+size_t Result::getEnergy() {
     return energy;
 }
 
-int Result::getTicksElapsed() {
+size_t Result::getTicksElapsed() {
     return ticksElapsed;
 }
 
