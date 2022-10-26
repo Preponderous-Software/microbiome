@@ -28,7 +28,7 @@ void Microbiome::addMicroorganismsToEnvironment() {
 
 void Microbiome::initiateMicroorganismMovement() {
     logger->log("Initiating microorganism movement...");
-    for (int i = 0; i < microorganisms.size(); i++) {
+    for (size_t i = 0; i < microorganisms.size(); i++) {
         Microorganism& microorganism = microorganisms[i];
         if (microorganism.isDead()) {
             continue;
@@ -57,7 +57,7 @@ void Microbiome::initiateConsumptionOfDeadMicroorganisms(Microorganism& microorg
 
     // iterate through entities to check for the presence of a dead microorganism
     Entity* toRemove = nullptr;
-    for (int i = 0; i < entities.size(); i++) {
+    for (size_t i = 0; i < entities.size(); i++) {
         Entity* entity = entities[i];
         if (entity->getId() == microorganism.getId()) {
             continue;

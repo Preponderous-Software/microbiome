@@ -32,7 +32,7 @@ bool MicrobiomeApplication::run() {
 
 void MicrobiomeApplication::printResults() {
     // print out result summaries
-    for (int i = 0; i < results.size(); i++) {
+    for (size_t i = 0; i < results.size(); i++) {
         std::cout << "=== Simulation " << i << " Result ===" << std::endl;
         std::cout << "Surviving Microorganisms: " << results[i].getSurvivingMicroorganisms() << std::endl;
         std::cout << "Dead Microorganisms: " << results[i].getDeadMicroorganisms() << std::endl;
@@ -47,7 +47,7 @@ void MicrobiomeApplication::printResultAverages() {
     int totalDeadMicroorganisms = 0;
     int totalEnergy = 0;
     int totalTicksElapsed = 0;
-    for (int i = 0; i < results.size(); i++) {
+    for (size_t i = 0; i < results.size(); i++) {
         totalSurvivingMicroorganisms += results[i].getSurvivingMicroorganisms();
         totalDeadMicroorganisms += results[i].getDeadMicroorganisms();
         totalEnergy += results[i].getEnergy();

@@ -11,16 +11,16 @@ class Result {
     public:
         Result() = delete;
         Result(Simulation* simulation);
-        int getSurvivingMicroorganisms();
-        int getDeadMicroorganisms();
-        int getEnergy();
-        int getTicksElapsed();
+        size_t getSurvivingMicroorganisms();
+        size_t getDeadMicroorganisms();
+        size_t getEnergy();
+        size_t getTicksElapsed();
         void print();
     private:
-        int survivingMicroorganisms;
-        int deadMicroorganisms;
-        int energy;
-        int ticksElapsed;
+        size_t survivingMicroorganisms;
+        size_t deadMicroorganisms;
+        size_t energy;
+        size_t ticksElapsed;
 };
 
 #endif
