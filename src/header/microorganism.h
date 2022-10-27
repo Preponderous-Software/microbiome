@@ -23,8 +23,8 @@ class Microorganism : public Entity {
         void incrementTimesEaten();
         bool isDead();
     private:
-        int maxEnergy = 200;
-        int maxMetabolicRateFactor = 5;
+        int maxEnergy = 1000;
+        int maxMetabolicRateFactor = 4;
         int minimumEnergy = 100;
         int energy = rand() % (maxEnergy - minimumEnergy) + minimumEnergy + 1;
         int metabolicRate = rand() % maxMetabolicRateFactor + 1;
