@@ -74,18 +74,18 @@ void Simulation::printFinishedStats() {
     std::cout << "Ticks elapsed: " << numTicks << std::endl;
 }
 
-int Simulation::getSurvivingMicroorganisms() {
+size_t Simulation::getSurvivingMicroorganisms() {
     return microbiome->getNumAliveMicroorganisms();
 }
 
-int Simulation::getDeadMicroorganisms() {
+size_t Simulation::getDeadMicroorganisms() {
     return microbiome->getNumDeadMicroorganisms();
 }
 
-int Simulation::getEnergy() {
+size_t Simulation::getEnergy() {
     return microbiome->getTotalEnergy();
 }
 
-int Simulation::getTicksElapsed() {
+size_t Simulation::getTicksElapsed() {
     return numTicks;
 }

@@ -15,15 +15,15 @@ class Simulation {
         Simulation(AppConfig* config, int id, std::string name);
         ~Simulation();
         void run();
-        int getSurvivingMicroorganisms();
-        int getDeadMicroorganisms();
-        int getEnergy();
-        int getTicksElapsed();
+        size_t getSurvivingMicroorganisms();
+        size_t getDeadMicroorganisms();
+        size_t getEnergy();
+        size_t getTicksElapsed();
         void printRunningStats();
         void printFinishedStats();
     private:
         bool running = true;
-        int numTicks = 0;
+        size_t numTicks = 0;
         Microbiome* microbiome;
         AppConfig* config;
         Logger* logger;

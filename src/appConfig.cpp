@@ -1,6 +1,6 @@
 #include "header/appConfig.h"
 
-int AppConfig::getEnvironmentSize() {
+size_t AppConfig::getEnvironmentSize() {
     return environmentSize;
 }
 
@@ -8,7 +8,7 @@ void AppConfig::setEnvironmentSize(int environmentSize) {
     this->environmentSize = environmentSize;
 }
 
-int AppConfig::getEntityFactor() {
+size_t AppConfig::getEntityFactor() {
     return entityFactor;
 }
 
@@ -16,7 +16,7 @@ void AppConfig::setEntityFactor(int entityFactor) {
     this->entityFactor = entityFactor;
 }
 
-int AppConfig::getMaxTicks() {
+size_t AppConfig::getMaxTicks() {
     return maxTicks;
 }
 
@@ -24,7 +24,7 @@ void AppConfig::setMaxTicks(int maxTicks) {
     this->maxTicks = maxTicks;
 }
 
-int AppConfig::getTickLengthInSeconds() {
+size_t AppConfig::getTickLengthInSeconds() {
     return tickLengthInSeconds;
 }
 
@@ -32,7 +32,7 @@ void AppConfig::setTickLengthInSeconds(int tickLengthInSeconds) {
     this->tickLengthInSeconds = tickLengthInSeconds;
 }
 
-int AppConfig::getNumSimulations() {
+size_t AppConfig::getNumSimulations() {
     return numSimulations;
 }
 
