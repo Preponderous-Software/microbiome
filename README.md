@@ -60,3 +60,14 @@ The Microbiome class represents a virtual microbial community. It is an extensio
 
 ### Microorganism
 The Microorganism class represents a single microbe. It is an extension of the Entity class provided by env-lib-cpp. The Microorganism class is responsible for managing the microbe's energy and metabolism.
+
+## 📄 License
+
+This project is licensed under the **Preponderous Non-Commercial License (Preponderous-NC)**.  
+It is free to use, modify, and self-host for **non-commercial** purposes, but **commercial use requires a separate license**.
+
+> **Disclaimer:** *Preponderous Software is not a legal entity.*  
+> All rights to works published under this license are reserved by the copyright holder, **Daniel McCoy Stephenson**.
+
+Full license text:  
+[https://github.com/Preponderous-Software/preponderous-nc-license/blob/main/LICENSE.md](https://github.com/Preponderous-Software/preponderous-nc-license/blob/main/LICENSE.md)
