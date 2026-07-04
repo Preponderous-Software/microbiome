@@ -25,6 +25,7 @@ class Microbiome : public Environment {
         void printConsoleRepresentation();
         void removeEntity(Entity& entity);
         std::vector<Microorganism*> getMicroorganisms();
+        std::vector<Biomatter*> getBiomatter();
         int getNumAliveMicroorganisms();
         int getNumDeadMicroorganisms();
         int getTotalEnergy();

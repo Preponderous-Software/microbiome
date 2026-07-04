@@ -258,6 +258,14 @@ std::vector<Microorganism*> Microbiome::getMicroorganisms() {
     return result;
 }
 
+std::vector<Biomatter*> Microbiome::getBiomatter() {
+    std::vector<Biomatter*> result;
+    for (std::unique_ptr<Biomatter>& b : biomatter) {
+        result.push_back(b.get());
+    }
+    return result;
+}
+
 int Microbiome::getNumAliveMicroorganisms() {
     int numAlive = 0;
     for (std::unique_ptr<Microorganism>& microorganism : microorganisms) {
