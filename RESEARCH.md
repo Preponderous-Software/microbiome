@@ -188,11 +188,16 @@ Not a commitment, but a sensible dependency order given the above — several
 later items are much more interesting once the earlier ones exist:
 
 1. **Reproduction** (#13) — nothing else about population/evolutionary
-   dynamics is meaningful without it.
+   dynamics is meaningful without it. **Implemented**: binary fission once
+   energy crosses a threshold, minus a fission cost (see `Microbiome::initiateReproduction`).
 2. **Biomatter on death** (#14) — closes the energy budget and creates a real
    nutrient pool to build chemotaxis and cross-feeding on top of.
+   **Implemented**: dead organisms are replaced by a foragable `Biomatter`
+   entity instead of an inert corpse (see `Microbiome::processDeath`).
 3. **Chemotaxis toward nutrient/biomatter** — cheap, high visual/behavioral
    payoff once there's something in the environment worth moving toward.
+   **Implemented**: movement is probabilistically biased toward adjacent
+   cells containing biomatter (see `Microbiome::moveMicroorganism`).
 4. **Species differentiation** (trait profiles, then divergent metabolism) —
    turns "a microorganism" into "a microbiome."
 5. **Mutation on reproduction** — evolution falls out of 1 and 4 almost for

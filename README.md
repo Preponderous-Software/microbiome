@@ -61,6 +61,19 @@ The Microbiome class represents a virtual microbial community. It is an extensio
 ### Microorganism
 The Microorganism class represents a single microbe. It is an extension of the Entity class provided by env-lib-cpp. The Microorganism class is responsible for managing the microbe's energy and metabolism.
 
+### Biomatter
+The Biomatter class represents decomposing biomass left behind when a microorganism dies. It is an extension of the Entity class provided by env-lib-cpp. Living microorganisms bias their movement toward it (chemotaxis) and can forage it for energy, modeling nutrient recycling instead of dead microorganisms simply vanishing from the energy budget.
+
+## Simulated Mechanics
+
+See [RESEARCH.md](RESEARCH.md) for the microbiology background behind these mechanics and what's still missing.
+
+- **Metabolism** - every microorganism loses energy each tick and dies once its energy reaches zero.
+- **Decomposition** - a dead microorganism's biomass becomes Biomatter in the environment rather than an inert corpse.
+- **Chemotaxis** - microorganisms bias their movement toward neighboring locations that have Biomatter, rather than moving with pure uniform randomness.
+- **Foraging** - a microorganism sharing a location with Biomatter can consume it for energy, depleting it over time.
+- **Reproduction** - a microorganism that accumulates enough energy divides via binary fission into two daughter cells, each inheriting half its remaining energy (minus the energetic cost of dividing) and its metabolic rate.
+
 ## 📄 License
 
 This project is licensed under the **Preponderous Non-Commercial License (Preponderous-NC)**.  
