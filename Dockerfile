@@ -4,7 +4,8 @@ USER root
 WORKDIR /microbiome
 
 # add build tools
-RUN apt-get update && apt-get install -y make g++ pkg-config libulfius-dev curl
+RUN apt-get update && apt-get install -y make g++ pkg-config curl \
+    libulfius-dev libmicrohttpd-dev libjansson-dev
 
 # add source code
 COPY . .
