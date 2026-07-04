@@ -17,7 +17,7 @@ namespace {
 <title>Microbiome</title>
 <style>
   :root {
-    color-scheme: light dark;
+    color-scheme: dark;
     --bg: #0b1210;
     --panel: #111a17;
     --text: #d8e6df;
@@ -27,15 +27,6 @@ namespace {
     --subsisting: #4fa9d6;
     --dying: #e05252;
     --biomatter: #b58a4a;
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f4f7f5;
-      --panel: #ffffff;
-      --text: #16231d;
-      --muted: #4c6157;
-      --grid: #e3ebe6;
-    }
   }
   * { box-sizing: border-box; }
   body {
