@@ -2,10 +2,16 @@
 #include <Windows.h>
 #else
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #endif
 
+#include <chrono>
+#include <cstring>
 #include <string>
 #include <iostream>
+#include <thread>
 #include <assert.h>
 
 #include "header/appConfig.h"
@@ -13,6 +19,7 @@
 #include "header/result.h"
 #include "header/microorganism.h"
 #include "header/microbiome.h"
+#include "header/webServer.h"
 
 void testTemplate() {
     std::cout << "Test - Template";
@@ -238,6 +245,66 @@ void testSimulationResults() {
     std::cout << " --- " << "Success" << std::endl;
 }
 
+// web server tests -------------------------------------------------------------
+std::string httpGetBody(int port, std::string path) {
+    for (int attempt = 0; attempt < 40; attempt++) {
+        int sock = socket(AF_INET, SOCK_STREAM, 0);
+        struct sockaddr_in addr;
+        std::memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(port);
+        inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+
+        if (connect(sock, (struct sockaddr*) &addr, sizeof(addr)) == 0) {
+            std::string request = "GET " + path + " HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+            send(sock, request.c_str(), request.size(), 0);
+
+            std::string response;
+            char buffer[4096];
+            ssize_t bytesRead;
+            while ((bytesRead = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
+                response.append(buffer, bytesRead);
+            }
+            close(sock);
+
+            size_t bodyStart = response.find("\r\n\r\n");
+            if (bodyStart == std::string::npos) {
+                return "";
+            }
+            return response.substr(bodyStart + 4);
+        }
+
+        // server may not have started listening yet
+        close(sock);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    return "";
+}
+
+void testWebServerServesSimulationState() {
+    std::cout << "Test - Web Server Serves Simulation State";
+
+    AppConfig config;
+    config.setEnvironmentSize(3);
+    config.setEntityFactor(1);
+    config.setSimulationOutputEnabled(false);
+
+    int port = 18123;
+    WebServer server(&config, port);
+    std::thread serverThread(&WebServer::run, &server);
+
+    std::string body = httpGetBody(port, "/api/state");
+
+    server.stop();
+    serverThread.join();
+
+    assert(!body.empty());
+    assert(body.find("\"gridSize\":3") != std::string::npos);
+    assert(body.find("\"microorganisms\"") != std::string::npos);
+    assert(body.find("\"biomatter\"") != std::string::npos);
+    std::cout << " --- " << "Success" << std::endl;
+}
+
 
 void seedRandomNumberGenerator() {
     srand (time (NULL));
@@ -267,5 +334,8 @@ int main() {
     // run simulation tests
     testRunningSimulation();
     testSimulationResults();
+
+    // run web server tests
+    testWebServerServesSimulationState();
     return 0;
 }
