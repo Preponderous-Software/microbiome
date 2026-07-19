@@ -82,53 +82,50 @@ TEST_CASE("MicroorganismFactory creates microorganisms with incremented IDs", "[
 }
 
 // Microbiome Tests
-TEST_CASE("Microbiome creation with correct entity count", "[microbiome]") {
-    int id = 0;
-    int size = 10;
-    int entityFactor = 5;
-    std::string name = "Test Microbiome";
-    
-    Microbiome microbiome(id, name, size, entityFactor);
-    
-    int numEntitiesInEnvironment = microbiome.getNumEntities();
-    int numTrackedMicroorganisms = microbiome.getMicroorganisms().size();
-    
-    REQUIRE(numEntitiesInEnvironment == numTrackedMicroorganisms);
-}
-
-TEST_CASE("Microbiome can add and remove microorganisms", "[microbiome]") {
-    // Create microbiome
+// Shared fixture setup (id/size/entityFactor/name/Microbiome construction) is factored via
+// SECTIONs: Catch2 re-runs the TEST_CASE body once per SECTION, so each still gets a fresh,
+// isolated Microbiome instance.
+TEST_CASE("Microbiome entity tracking and lifecycle", "[microbiome]") {
     int id = 0;
     int size = 10;
     int entityFactor = 5;
     std::string name = "Test Microbiome";
     Microbiome microbiome(id, name, size, entityFactor);
 
-    // Create microorganism
-    MicroorganismFactory factory;
-    Microorganism microorganism = factory.createMicroorganism();
+    SECTION("creation results in correct entity count") {
+        int numEntitiesInEnvironment = microbiome.getNumEntities();
+        int numTrackedMicroorganisms = microbiome.getMicroorganisms().size();
 
-    // Add microorganism to microbiome
-    microbiome.addMicroorganism(microorganism);
-
-    // Verify presence
-    REQUIRE(microbiome.isMicroorganismPresent(microorganism.getId()) == true);
-
-    // Remove microorganism from microbiome
-    microbiome.removeMicroorganism(microorganism.getId());
-
-    // Verify absence
-    REQUIRE(microbiome.isMicroorganismPresent(microorganism.getId()) == false);
-
-    // Verify that microorganism is no longer in the microorganisms vector
-    std::vector<Microorganism> microorganisms = microbiome.getMicroorganisms();
-    bool microorganismFound = false;
-    for (Microorganism& m : microorganisms) {
-        if (m.getId() == microorganism.getId()) {
-            microorganismFound = true;
-        }
+        REQUIRE(numEntitiesInEnvironment == numTrackedMicroorganisms);
     }
-    REQUIRE(microorganismFound == false);
+
+    SECTION("can add and remove microorganisms") {
+        // Create microorganism
+        MicroorganismFactory factory;
+        Microorganism microorganism = factory.createMicroorganism();
+
+        // Add microorganism to microbiome
+        microbiome.addMicroorganism(microorganism);
+
+        // Verify presence
+        REQUIRE(microbiome.isMicroorganismPresent(microorganism.getId()) == true);
+
+        // Remove microorganism from microbiome
+        microbiome.removeMicroorganism(microorganism.getId());
+
+        // Verify absence
+        REQUIRE(microbiome.isMicroorganismPresent(microorganism.getId()) == false);
+
+        // Verify that microorganism is no longer in the microorganisms vector
+        std::vector<Microorganism> microorganisms = microbiome.getMicroorganisms();
+        bool microorganismFound = false;
+        for (Microorganism& m : microorganisms) {
+            if (m.getId() == microorganism.getId()) {
+                microorganismFound = true;
+            }
+        }
+        REQUIRE(microorganismFound == false);
+    }
 }
 
 // Simulation Tests
@@ -143,36 +140,31 @@ TEST_CASE("Simulation creation", "[simulation]") {
     }
 }
 
-TEST_CASE("Simulation runs correctly", "[simulation]") {
+// Shared fixture setup (config + Simulation construction + run()) is factored via SECTIONs:
+// Catch2 re-runs the TEST_CASE body once per SECTION, so each still gets a fresh, isolated
+// Simulation instance.
+TEST_CASE("Simulation runs and produces consistent results", "[simulation]") {
     AppConfig config;
     config.setTickLengthInSeconds(0);
     config.setSimulationOutputEnabled(false);
     config.setMaxTicks(10);  // Set a small number of ticks for faster testing
-    
-    int id = 0;
-    std::string name = "Test Simulation";
-    Simulation simulation(&config, id, name);
-    
-    simulation.run();
-    
-    REQUIRE(simulation.getTicksElapsed() >= config.getMaxTicks());
-}
 
-TEST_CASE("Simulation results are consistent", "[simulation]") {
-    AppConfig config;
-    config.setTickLengthInSeconds(0);
-    config.setSimulationOutputEnabled(false);
-    config.setMaxTicks(10);  // Set a small number of ticks for faster testing
-    
     int id = 0;
     std::string name = "Test Simulation";
     Simulation simulation(&config, id, name);
-    
+
     simulation.run();
-    Result result = Result(&simulation);
-    
-    REQUIRE(result.getSurvivingMicroorganisms() == simulation.getSurvivingMicroorganisms());
-    REQUIRE(result.getDeadMicroorganisms() == simulation.getDeadMicroorganisms());
-    REQUIRE(result.getEnergy() == simulation.getEnergy());
-    REQUIRE(result.getTicksElapsed() == simulation.getTicksElapsed());
+
+    SECTION("ticks elapsed reaches configured maximum") {
+        REQUIRE(simulation.getTicksElapsed() >= config.getMaxTicks());
+    }
+
+    SECTION("Result mirrors Simulation state") {
+        Result result = Result(&simulation);
+
+        REQUIRE(result.getSurvivingMicroorganisms() == simulation.getSurvivingMicroorganisms());
+        REQUIRE(result.getDeadMicroorganisms() == simulation.getDeadMicroorganisms());
+        REQUIRE(result.getEnergy() == simulation.getEnergy());
+        REQUIRE(result.getTicksElapsed() == simulation.getTicksElapsed());
+    }
 }
