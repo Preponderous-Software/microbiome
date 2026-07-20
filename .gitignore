@@ -1,6 +1,7 @@
 mb_app
 mb_webapp
 tests
+mb_tests
 log.mbapp.txt
 log.microbiome.txt
 log.simulation.txt

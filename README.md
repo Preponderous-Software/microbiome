@@ -26,6 +26,8 @@ Ticks elapsed: 16 of 120
 ```
 
 ## Testing
+The project now uses **Catch2** as the primary testing framework, providing better test organization and reporting.
+
 ### How to run the tests in the dev container
 1. Install Docker
 2. Clone the repository
@@ -34,7 +36,19 @@ Ticks elapsed: 16 of 120
 5. Click on the green button in the bottom left corner of the window.
 6. Select "Reopen in Container".
 7. Open a terminal in VSCode.
-8. Run the `./run_tests.sh` script or build the tests with `make tests` and run them with `./mb_tests`.
+8. Run the `./run_tests.sh` script or build the tests with `make catch2_tests` and run them with `./mb_tests`.
+
+### Available Test Commands
+- `make catch2_tests` - Build and use Catch2 framework tests (recommended)
+- `make tests` - Build legacy assert-based tests (for backward compatibility)
+- `make test` - Alias for `catch2_tests`
+- `./run_tests.sh` - Run both Catch2 and legacy tests
+
+### Catch2 Features
+- Better test reporting and failure diagnostics
+- Test filtering by tags: `./mb_tests [microorganism]`
+- Verbose output: `./mb_tests --success`
+- List all tests: `./mb_tests --list-tests`
 
 ## Running the application
 ### How to run the application with Docker-Compose
