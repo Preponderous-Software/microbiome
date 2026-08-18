@@ -39,10 +39,15 @@ The project now uses **Catch2** as the primary testing framework, providing bett
 8. Run the `./run_tests.sh` script or build the tests with `make catch2_tests` and run them with `./mb_tests`.
 
 ### Available Test Commands
-- `make catch2_tests` - Build and use Catch2 framework tests (recommended)
-- `make tests` - Build legacy assert-based tests (for backward compatibility)
+- `make catch2_tests` - Build the Catch2 framework tests as `./mb_tests` (recommended)
+- `make tests` - Build the legacy assert-based tests as `./tests` (for backward compatibility)
 - `make test` - Alias for `catch2_tests`
 - `./run_tests.sh` - Run both Catch2 and legacy tests
+- `make` - Builds both test binaries alongside the applications, so a test suite that stops compiling fails the build (and CI) rather than going unnoticed
+
+The two suites overlap, with one gap: the web server's HTTP test (`/api/state`) currently
+lives only in the legacy suite, because `make catch2_tests` deliberately links no Ulfius
+dependency. Run `./run_tests.sh` to cover both.
 
 ### Catch2 Features
 - Better test reporting and failure diagnostics

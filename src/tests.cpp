@@ -327,6 +327,7 @@ int main() {
 
     // run microbiome tests
     testMicrobiomeCreation();
+    testRemovingMicroorganismFromMicrobiome();
     testMicroorganismReproduction();
     testDeathProducesForageableBiomatter();
     testSimulationCreation();
