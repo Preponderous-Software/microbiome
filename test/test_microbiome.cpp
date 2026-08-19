@@ -117,15 +117,57 @@ TEST_CASE("Microbiome entity tracking and lifecycle", "[microbiome]") {
         REQUIRE(microbiome.isMicroorganismPresent(microorganism.getId()) == false);
 
         // Verify that microorganism is no longer in the microorganisms vector
-        std::vector<Microorganism> microorganisms = microbiome.getMicroorganisms();
+        std::vector<Microorganism*> microorganisms = microbiome.getMicroorganisms();
         bool microorganismFound = false;
-        for (Microorganism& m : microorganisms) {
-            if (m.getId() == microorganism.getId()) {
+        for (Microorganism* m : microorganisms) {
+            if (m->getId() == microorganism.getId()) {
                 microorganismFound = true;
             }
         }
         REQUIRE(microorganismFound == false);
     }
+}
+
+TEST_CASE("Microorganism reproduction increases the population", "[microbiome]") {
+    int id = 0;
+    int size = 3;
+    int entityFactor = 1;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
+
+    size_t populationBefore = microbiome.getMicroorganisms().size();
+
+    // give one microorganism enough energy to reproduce this tick; the
+    // maximum single-tick metabolic cost (4) can't bring it back under the
+    // reproduction threshold (900), so reproduction is guaranteed to occur.
+    microbiome.getMicroorganisms()[0]->setEnergy(950);
+
+    microbiome.initiateMicroorganismMovement();
+
+    REQUIRE(microbiome.getMicroorganisms().size() > populationBefore);
+}
+
+TEST_CASE("Death produces forageable biomatter", "[microbiome]") {
+    int id = 0;
+    int size = 3;
+    int entityFactor = 1;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
+
+    std::vector<Microorganism*> microorganisms = microbiome.getMicroorganisms();
+    size_t populationSize = microorganisms.size();
+    for (Microorganism* microorganism : microorganisms) {
+        // low enough that any metabolic rate (1-4) kills it this tick
+        microorganism->setEnergy(1);
+    }
+
+    microbiome.initiateMicroorganismMovement();
+
+    REQUIRE(microbiome.getNumAliveMicroorganisms() == 0);
+    REQUIRE(microbiome.getNumDeadMicroorganisms() == (int) populationSize);
+    // the population's energy didn't just vanish - it should still be
+    // recoverable as biomatter in the environment.
+    REQUIRE(microbiome.getTotalEnergy() > 0);
 }
 
 // Simulation Tests

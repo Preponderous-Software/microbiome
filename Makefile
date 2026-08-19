@@ -9,7 +9,7 @@ ENVLIBCPP_FILES = env-lib-cpp/src/entity.cpp env-lib-cpp/src/environment.cpp env
 WARNING_FLAGS = -pedantic -Wall
 ULFIUS_FLAGS = $(shell pkg-config --cflags --libs libulfius jansson)
 
-all: mbapp tests webapp
+all: mbapp tests catch2_tests webapp
 
 mbapp: src/mbapp.cpp
 	g++ $(WARNING_FLAGS) $(MAIN_FILE) $(PROJECT_FILES) $(ENVLIBCPP_FILES)  -o mb_app
