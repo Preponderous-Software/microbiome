@@ -209,9 +209,12 @@ void testSimulationCreation() {
     int id = 0;
     std::string name = "Test Simulation";
     Simulation simulation(&config, id, name);
-    if (config.getMaxTicks() > 0) {
-        assert(simulation.getTicksElapsed() >= config.getMaxTicks());
-    }
+    // a freshly constructed simulation has not run yet, and is populated with one
+    // microorganism per (environment size x entity factor).
+    assert(simulation.getTicksElapsed() == 0);
+    assert(simulation.getSurvivingMicroorganisms() == config.getEnvironmentSize() * config.getEntityFactor());
+    assert(simulation.getDeadMicroorganisms() == 0);
+    assert(simulation.getEnergy() > 0);
     std::cout << " --- " << "Success" << std::endl;
 }
 
@@ -220,6 +223,7 @@ void testRunningSimulation() {
     AppConfig config;
     config.setTickLengthInSeconds(0);
     config.setSimulationOutputEnabled(false);
+    config.setMaxTicks(10); // the tick ceiling has to be set explicitly - it defaults to 0
     int id = 0;
     std::string name = "Test Simulation";
     Simulation simulation(&config, id, name);

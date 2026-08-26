@@ -176,10 +176,13 @@ TEST_CASE("Simulation creation", "[simulation]") {
     int id = 0;
     std::string name = "Test Simulation";
     Simulation simulation(&config, id, name);
-    
-    if (config.getMaxTicks() > 0) {
-        REQUIRE(simulation.getTicksElapsed() >= config.getMaxTicks());
-    }
+
+    // a freshly constructed simulation has not run yet, and is populated with one
+    // microorganism per (environment size x entity factor).
+    REQUIRE(simulation.getTicksElapsed() == 0);
+    REQUIRE(simulation.getSurvivingMicroorganisms() == config.getEnvironmentSize() * config.getEntityFactor());
+    REQUIRE(simulation.getDeadMicroorganisms() == 0);
+    REQUIRE(simulation.getEnergy() > 0);
 }
 
 // Shared fixture setup (config + Simulation construction + run()) is factored via SECTIONs:
