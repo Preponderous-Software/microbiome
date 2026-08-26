@@ -182,7 +182,9 @@ TEST_CASE("Simulation creation", "[simulation]") {
     REQUIRE(simulation.getTicksElapsed() == 0);
     REQUIRE(simulation.getSurvivingMicroorganisms() == config.getEnvironmentSize() * config.getEntityFactor());
     REQUIRE(simulation.getDeadMicroorganisms() == 0);
-    REQUIRE(simulation.getEnergy() > 0);
+    // a microorganism is dead once its energy reaches zero, so every survivor
+    // carries at least one unit of energy.
+    REQUIRE(simulation.getEnergy() >= simulation.getSurvivingMicroorganisms());
 }
 
 // Shared fixture setup (config + Simulation construction + run()) is factored via SECTIONs:

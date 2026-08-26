@@ -214,7 +214,9 @@ void testSimulationCreation() {
     assert(simulation.getTicksElapsed() == 0);
     assert(simulation.getSurvivingMicroorganisms() == config.getEnvironmentSize() * config.getEntityFactor());
     assert(simulation.getDeadMicroorganisms() == 0);
-    assert(simulation.getEnergy() > 0);
+    // a microorganism is dead once its energy reaches zero, so every survivor
+    // carries at least one unit of energy.
+    assert(simulation.getEnergy() >= simulation.getSurvivingMicroorganisms());
     std::cout << " --- " << "Success" << std::endl;
 }
 
