@@ -35,3 +35,21 @@ jobs:
       # coverage of GET /api/state (see #18).
       - name: Run legacy test suite
         run: docker run --rm --entrypoint sh microbiome-ci -c ./tests
+      # Regression guard for the stale-binary defect (#33): running the suites
+      # only helps if make rebuilds them first. `make -q` exits non-zero when a
+      # target needs remaking, so a target that wrongly reports itself up to
+      # date after its sources change fails this step.
+      - name: Verify build targets track their sources
+        run: |
+          docker run --rm --entrypoint sh microbiome-ci -c '
+            touch src/simulation.cpp
+            if make -q tests; then
+              echo "tests reported up to date after src/simulation.cpp changed" >&2
+              exit 1
+            fi
+            touch src/header/microbiome.h
+            if make -q mb_tests; then
+              echo "mb_tests reported up to date after src/header/microbiome.h changed" >&2
+              exit 1
+            fi
+          '
