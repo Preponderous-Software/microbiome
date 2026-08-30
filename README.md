@@ -43,7 +43,15 @@ The project now uses **Catch2** as the primary testing framework, providing bett
 - `make tests` - Build the legacy assert-based tests as `./tests` (for backward compatibility)
 - `make test` - Alias for `catch2_tests`
 - `./run_tests.sh` - Run both Catch2 and legacy tests
-- `make` - Builds both test binaries alongside the applications, so a test suite that stops compiling fails the build (and CI) rather than going unnoticed
+- `make` - Builds both test binaries alongside the applications, so a test suite that stops compiling fails the build rather than going unnoticed
+
+CI (`.github/workflows/docker-build.yml`) builds the production image and then executes both
+suites inside it, so a failing assertion fails the build too, not only a failing compile.
+
+Every build target lists the sources and headers it is built from, so changing any of them
+rebuilds the affected binaries. `make tests` in particular used to consider a `tests` binary
+up to date whenever it was newer than `src/tests.cpp` alone, and could re-run a stale build
+after a change elsewhere.
 
 The two suites overlap, with one gap: the web server's HTTP test (`/api/state`) currently
 lives only in the legacy suite, because `make catch2_tests` deliberately links no Ulfius

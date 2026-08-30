@@ -1,5 +1,6 @@
 # Verifies the production Docker image builds (this is what the gateway
-# deploy does). No third-party actions: manual checkout, plain run steps.
+# deploy does) and that both test suites pass inside it. No third-party
+# actions: manual checkout, plain run steps.
 name: docker-build
 on:
   push:
@@ -23,3 +24,14 @@ jobs:
         run: docker build -t microbiome-ci .
       - name: Smoke-test webapp binary exists
         run: docker run --rm --entrypoint ls microbiome-ci -l mb_webapp mb_app
+      # `make` only proves the suites compile. Executing them is what lets a
+      # failing REQUIRE or assert fail the build. Kept as two steps so the log
+      # names which suite broke; `sh -c` is used because the image's CMD would
+      # otherwise be appended to the binary as a stray argument.
+      - name: Run Catch2 test suite
+        run: docker run --rm --entrypoint sh microbiome-ci -c ./mb_tests
+      # The legacy suite binds 127.0.0.1:18123 in testWebServerServesSimulationState;
+      # that is container-local, so no port needs publishing. It is the only
+      # coverage of GET /api/state (see #18).
+      - name: Run legacy test suite
+        run: docker run --rm --entrypoint sh microbiome-ci -c ./tests
