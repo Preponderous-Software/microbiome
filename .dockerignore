@@ -1,0 +1,14 @@
+# The Dockerfile's `COPY . .` would otherwise copy host-built binaries into the
+# image. COPY preserves their mtimes, so a binary built locally after its sources
+# still looks up to date to `make` inside the container, and the image would ship
+# (and CI would run) the host's stale build instead of its own.
+mb_app
+mb_webapp
+tests
+mb_tests
+
+# Runtime artifacts, never inputs to the build.
+log.*.txt
+
+# Not read by `make`; excluded to keep the build context small.
+.git
