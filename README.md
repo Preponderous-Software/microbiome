@@ -87,7 +87,7 @@ With Docker Compose:
 1. Run `docker-compose up --build microbiome-webapp`
 2. Open http://localhost:8080 in a browser
 
-Building locally (in addition to `make g++`, this needs `libulfius-dev` and `pkg-config`, e.g. `apt-get install pkg-config libulfius-dev` on Debian/Ubuntu):
+Building locally (in addition to `make` and `g++`, this needs `libulfius-dev` and `pkg-config`, e.g. `apt-get install pkg-config libulfius-dev` on Debian/Ubuntu):
 1. Run `make webapp`
 2. Run `./mb_webapp` (set `MICROBIOME_WEB_PORT` to use a port other than the default 8080)
 3. Open http://localhost:8080 in a browser

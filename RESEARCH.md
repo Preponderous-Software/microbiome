@@ -13,36 +13,46 @@ design/PR.
 Reading through `src/`, the present model is intentionally minimal:
 
 - A single, undifferentiated `Microorganism` type (`src/header/microorganism.h`)
-  with three traits: `energy`, `metabolicRate`, and derived `isDead()`.
+  with two traits, `energy` and `metabolicRate`, plus derived `isDead()`.
 - Every organism starts with a random energy value and a random fixed
   metabolic rate; there is no genotype, species, or trait variation beyond
-  those two numbers.
-- Each tick, every living organism takes one random walk step on the grid and
+  those two numbers. Daughter cells inherit the parent's `metabolicRate`
+  unchanged — there is no mutation.
+- Each tick, every living organism takes one step to an adjacent cell and
   loses `metabolicRate` energy (`Microbiome::initiateMicroorganismMovement`,
-  `src/microbiome.cpp:29`). There is no directional bias — movement is
-  uniform random regardless of what's nearby.
-- Death is just `energy <= 0`. Dead organisms remain on the grid as inert
-  entities.
-- The only interaction between organisms is opportunistic necrophagy: a
-  living organism sharing a grid cell with a dead one consumes it for
-  `metabolicRate * 2` energy (`Microbiome::initiateConsumptionOfDeadMicroorganisms`).
-  There is no other predation, cooperation, or signaling.
-- There is no reproduction, no mutation, no nutrient field independent of the
-  organisms themselves, and no environmental variables (temperature, pH,
-  oxygen, etc.).
+  `src/microbiome.cpp`). Movement is biased, not uniform: with
+  `chemotaxisBiasPercent` probability the step goes to an adjacent cell that
+  holds biomatter, if any does (`Microbiome::moveMicroorganism`, §3.1).
+- Death is `energy <= 0`. A dead organism is removed from the grid and
+  replaced in place by a `Biomatter` entity (`src/header/biomatter.h`) with a
+  fixed `biomatterYieldPerDeath` energy (`Microbiome::processDeath`, §2.2).
+- The only interaction between organisms is indirect, through that biomatter:
+  a living organism sharing a cell with biomatter forages up to
+  `metabolicRate * biomatterForagingMultiplier` energy from it per tick, and
+  depleted biomatter is purged (`Microbiome::initiateForaging`). There is no
+  predation, cooperation, or signaling.
+- An organism whose energy reaches `reproductionEnergyThreshold` divides by
+  binary fission: parent and offspring each end up with
+  `(energy - fissionCost) / 2`, and the offspring is placed in an adjacent
+  cell (`Microbiome::initiateReproduction`, §2.1).
+- There is no nutrient field independent of the organisms themselves (all
+  biomatter originates from deaths), and no environmental variables
+  (temperature, pH, oxygen, etc.). The tuning constants named above live at
+  the bottom of `src/header/microbiome.h`.
 
-This is a reasonable "hello world" for an agent-based model, but it doesn't
-yet resemble a microbial community — it's closer to a population of
-identical particles with a decay timer. The sections below map real biology
-onto mechanics that would move it closer to an actual microbiome.
+This is a reasonable starting point for an agent-based model, but it doesn't
+yet resemble a microbial community — it's a single species with growth, death,
+and nutrient recycling, and nothing that differentiates one organism from
+another. The sections below map real biology onto mechanics that would move
+it closer to an actual microbiome; §7 records which ones have already landed.
 
 ## 2. Population dynamics
 
 ### 2.1 Reproduction ([#13](https://github.com/Preponderous-Software/microbiome/issues/13))
 Real bacteria reproduce by binary fission: a cell that has accumulated enough
 biomass splits into two, each inheriting (approximately) half the parent's
-resources. This is the single biggest missing mechanic — without it, the
-population is monotonically decaying and the simulation is really just
+resources. This was the single biggest missing mechanic — without it, the
+population was monotonically decaying and the simulation was really just
 modeling die-off, not a living community.
 
 Suggested mechanic: when `energy` crosses a `reproductionThreshold`, split
@@ -53,12 +63,18 @@ actual population dynamics (growth, carrying capacity, boom/bust cycles),
 and is a prerequisite for almost everything else in this document — mutation,
 selection, and evolution all require organisms that reproduce.
 
+*Status: implemented* (`Microbiome::initiateReproduction`; see §7). One
+divergence from the proposal above: the offspring is placed in a random
+adjacent cell regardless of whether that cell is already occupied, so grid
+occupancy does not yet limit reproduction (that is the §2.3 carrying-capacity
+work).
+
 ### 2.2 Death → biomatter → nutrient cycling ([#14](https://github.com/Preponderous-Software/microbiome/issues/14))
-Currently a dead organism is just an inert corpse worth a fixed energy bonus
-to whichever neighbor happens to eat it, and organisms that are never
-scavenged simply vanish from the energy budget (`getTotalEnergy` correctly
-notes energy can go negative and clamps it, which is itself a symptom of
-energy leaving the system with nowhere to go). Real decomposition recycles
+Before #14 landed, a dead organism was just an inert corpse worth a fixed
+energy bonus to whichever neighbor happened to eat it, and organisms that were
+never scavenged simply vanished from the energy budget (`getTotalEnergy`
+clamped a negative sum to zero, which was itself a symptom of energy leaving
+the system with nowhere to go). Real decomposition recycles
 nutrients: dead biomass is broken down by decomposers/extracellular enzymes
 and its constituent nutrients (carbon, nitrogen, phosphorus) re-enter the
 shared pool for other organisms to take up. Modeling death as "spawn a
@@ -66,6 +82,15 @@ biomatter/detritus resource in the environment" (per #14) rather than "spawn
 a corpse with a fixed bonus" keeps the system's total energy conserved and
 opens the door to a real nutrient cycle instead of a one-off scavenging
 bonus.
+
+*Status: implemented, with one open question* (`Microbiome::processDeath`; see
+§7). Death now spawns a foragable `Biomatter` entity in the dead organism's
+cell, and `getTotalEnergy` counts biomatter alongside living organisms. The
+yield, however, is a fixed `biomatterYieldPerDeath` rather than the
+organism's remaining energy (which is `<= 0` at death), so the energy budget
+described above is not yet conserved as written — whether to derive the yield
+from the organism or to keep a fixed influx and revise this section is
+tracked in [#30](https://github.com/Preponderous-Software/microbiome/issues/30).
 
 ### 2.3 Carrying capacity and logistic growth
 With reproduction added, population growth needs a limiting factor or it
@@ -92,12 +117,19 @@ Lotka-Volterra oscillations if one species preys on another (see §4).
 Real bacteria (e.g., *E. coli*) don't move randomly — they bias a
 run-and-tumble random walk up nutrient gradients and away from repellents,
 via receptor proteins and the Che signaling pathway. The simulation's
-`moveEntityToRandomAdjacentLocation` call is uniform random regardless of
-what's around the organism. A cheap first step toward realism: bias movement
-probability toward adjacent cells with more available nutrient/biomatter
-(§2.2) or more nearby dead organisms, and away from cells that are
-overcrowded. This alone would produce visibly more organic-looking clustering
-around food sources instead of the current uniform scatter.
+original `moveEntityToRandomAdjacentLocation` call was uniform random
+regardless of what was around the organism. A cheap first step toward
+realism: bias movement probability toward adjacent cells with more available
+nutrient/biomatter (§2.2) or more nearby dead organisms, and away from cells
+that are overcrowded. This alone would produce visibly more organic-looking
+clustering around food sources instead of a uniform scatter.
+
+*Status: partially implemented* (`Microbiome::moveMicroorganism`; see §7).
+Each step goes to a random adjacent cell that contains biomatter with
+`chemotaxisBiasPercent` probability, otherwise to a uniformly random adjacent
+cell. The bias is binary (biomatter present or not) rather than proportional
+to how much nutrient a cell holds, and there is no repulsion from crowded
+cells.
 
 ### 3.2 Motility variation
 Not all microbes swim — many are non-motile and rely on diffusion/passive
@@ -109,8 +141,8 @@ behaviorally without new mechanics.
 ## 4. Interactions between organisms
 
 ### 4.1 Predation beyond necrophagy
-The only current inter-organism interaction is eating something already
-dead. Real microbial predation exists too: predatory bacteria like
+The only current inter-organism interaction is foraging the biomatter left
+by something already dead. Real microbial predation exists too: predatory bacteria like
 *Bdellovibrio* invade and consume other living bacteria, protists graze on
 bacterial populations, and bacteriophages (viruses) infect and lyse
 bacterial cells, sometimes carrying genes between hosts (transduction, see
@@ -136,12 +168,12 @@ crosses a density threshold. A simple analog: once local density in a
 neighborhood exceeds a threshold, switch organisms into a "biofilm" state
 with reduced motility, reduced individual metabolic rate (shared/matrix
 protection), and increased local survival — a meaningfully different
-emergent structure from the current uniform random scatter.
+emergent structure from the current mostly-random scatter.
 
 ## 5. Genetics and evolution
 
 ### 5.1 Mutation and trait inheritance
-Once reproduction (§2.1) exists, giving offspring small random mutations to
+Now that reproduction (§2.1) exists, giving offspring small random mutations to
 inherited traits (metabolic rate, motility, nutrient preference) turns the
 simulation into an actual evolutionary process: traits that improve survival
 and reproduction in the current environment will become more common over
