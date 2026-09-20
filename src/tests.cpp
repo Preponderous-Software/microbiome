@@ -117,8 +117,8 @@ void testMicrobiomeCreation() {
 }
 
 void testRemovingMicroorganismFromMicrobiome() {
-    std::cout << "Test - Removing Microorganism From Microbiome" << std::endl;
-    
+    std::cout << "Test - Removing Microorganism From Microbiome";
+
     // create microbiome
     int id = 0;
     int size = 10;
@@ -288,8 +288,6 @@ std::string httpGetBody(int port, std::string path) {
 }
 
 void testWebServerServesSimulationState() {
-    std::cout << "Test - Web Server Serves Simulation State";
-
     AppConfig config;
     config.setEnvironmentSize(3);
     config.setEntityFactor(1);
@@ -304,6 +302,10 @@ void testWebServerServesSimulationState() {
     server.stop();
     serverThread.join();
 
+    // WebServer::run prints its own "Serving ..." line to stdout, so the test
+    // name is printed only once the server is down; otherwise the verdict
+    // would be pushed onto a line of its own, without the name it belongs to.
+    std::cout << "Test - Web Server Serves Simulation State";
     assert(!body.empty());
     assert(body.find("\"gridSize\":3") != std::string::npos);
     assert(body.find("\"microorganisms\"") != std::string::npos);
