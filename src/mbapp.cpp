@@ -7,7 +7,7 @@ MicrobiomeApplication::MicrobiomeApplication() {
 
 bool MicrobiomeApplication::run() {
     // run simulations
-    for (int i = 0; i < config.getNumSimulations(); i++) {
+    for (size_t i = 0; i < config.getNumSimulations(); i++) {
         std::cout << "Running simulation " << i + 1 << " of " << config.getNumSimulations() << std::endl;
         simulation = new Simulation(&config, i + 1, "Simulation " + std::to_string(i + 1));
         simulation->run();
