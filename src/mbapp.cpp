@@ -1,5 +1,6 @@
 #include "header/mbapp.h"
 #include "header/result.h"
+#include "header/usageReporting.h"
 
 MicrobiomeApplication::MicrobiomeApplication() {
     config = AppConfig();
@@ -62,6 +63,12 @@ void MicrobiomeApplication::printResultAverages() {
 }
 
 int main() {
+    // One startup event to trace, sent in the background; see
+    // header/usageReporting.h and the README's "Usage reporting" section.
+    // The destructor gives it a moment to leave when the program ends.
+    usage_reporting::UsageReporter usageReporting;
+    usageReporting.reportStartup();
+
     MicrobiomeApplication microbiomeApplication;
     microbiomeApplication.run();
     return 0;
