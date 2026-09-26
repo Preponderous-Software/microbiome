@@ -313,6 +313,26 @@ void testWebServerServesSimulationState() {
     std::cout << " --- " << "Success" << std::endl;
 }
 
+void testWebServerIndexLinksToPortfolio() {
+    AppConfig config;
+    config.setEnvironmentSize(3);
+    config.setEntityFactor(1);
+    config.setSimulationOutputEnabled(false);
+
+    int port = 18124;
+    WebServer server(&config, port);
+    std::thread serverThread(&WebServer::run, &server);
+
+    std::string body = httpGetBody(port, "/");
+
+    server.stop();
+    serverThread.join();
+
+    std::cout << "Test - Web Server Index Links To Portfolio";
+    assert(body.find("<footer>") != std::string::npos);
+    assert(body.find("href=\"https://danielstephenson.dev\"") != std::string::npos);
+    std::cout << " --- " << "Success" << std::endl;
+}
 
 void seedRandomNumberGenerator() {
     srand (time (NULL));
@@ -346,5 +366,6 @@ int main() {
 
     // run web server tests
     testWebServerServesSimulationState();
+    testWebServerIndexLinksToPortfolio();
     return 0;
 }
