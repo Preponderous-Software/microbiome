@@ -170,6 +170,91 @@ TEST_CASE("Death produces forageable biomatter", "[microbiome]") {
     REQUIRE(microbiome.getTotalEnergy() > 0);
 }
 
+// On a 1x1 grid there are no adjacent locations, so nothing moves and every entity shares the
+// single location. Microorganisms are processed in creation order, so the first one's death
+// leaves biomatter where the second one then forages it within the same tick.
+TEST_CASE("Microorganisms forage biomatter at their location", "[microbiome][biomatter]") {
+    int id = 0;
+    int size = 1;
+    int entityFactor = 2;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
+
+    std::vector<Microorganism*> microorganisms = microbiome.getMicroorganisms();
+    REQUIRE(microorganisms.size() == 2);
+    Microorganism* dying = microorganisms[0];
+    Microorganism* forager = microorganisms[1];
+    dying->setMetabolicRate(1);
+    dying->setEnergy(1);
+    forager->setMetabolicRate(3);
+    forager->setEnergy(500);
+
+    microbiome.initiateMicroorganismMovement();
+
+    SECTION("foraging replaces the energy spent metabolizing that tick") {
+        REQUIRE(microbiome.getMicroorganisms().size() == 1);
+        REQUIRE(forager->getEnergy() == 500);
+        REQUIRE(forager->getTimesEaten() == 1);
+        REQUIRE(microbiome.getBiomatter().size() == 1);
+    }
+
+    SECTION("each tick depletes the biomatter by the forager's metabolic rate") {
+        Biomatter* biomatter = microbiome.getBiomatter()[0];
+        int biomatterEnergyBefore = biomatter->getEnergy();
+
+        microbiome.initiateMicroorganismMovement();
+
+        REQUIRE(biomatter->getEnergy() == biomatterEnergyBefore - 3);
+        REQUIRE(forager->getEnergy() == 500);
+        REQUIRE(forager->getTimesEaten() == 2);
+        REQUIRE(microbiome.getTotalEnergy() == forager->getEnergy() + biomatter->getEnergy());
+    }
+
+    SECTION("depleted biomatter is removed from the environment") {
+        microbiome.getBiomatter()[0]->setEnergy(0);
+
+        microbiome.initiateMicroorganismMovement();
+
+        REQUIRE(microbiome.getBiomatter().empty());
+        REQUIRE(microbiome.getNumEntities() == 1);
+        // there was nothing left to forage, so the forager only paid its metabolic cost
+        REQUIRE(forager->getEnergy() == 497);
+        REQUIRE(forager->getTimesEaten() == 1);
+    }
+}
+
+TEST_CASE("Microbiome total energy is clamped at zero", "[microbiome]") {
+    int id = 0;
+    int size = 3;
+    int entityFactor = 1;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
+
+    for (Microorganism* microorganism : microbiome.getMicroorganisms()) {
+        microorganism->setEnergy(-100);
+    }
+
+    REQUIRE(microbiome.getTotalEnergy() == 0);
+}
+
+// Biomatter Tests
+TEST_CASE("Biomatter energy and depletion", "[biomatter]") {
+    Biomatter biomatter(0, "Test Biomatter", 60);
+
+    REQUIRE(biomatter.getEnergy() == 60);
+    REQUIRE(biomatter.isDepleted() == false);
+
+    biomatter.setEnergy(1);
+    REQUIRE(biomatter.getEnergy() == 1);
+    REQUIRE(biomatter.isDepleted() == false);
+
+    biomatter.setEnergy(0);
+    REQUIRE(biomatter.isDepleted() == true);
+
+    biomatter.setEnergy(-5);
+    REQUIRE(biomatter.isDepleted() == true);
+}
+
 // Simulation Tests
 TEST_CASE("Simulation creation", "[simulation]") {
     AppConfig config;
