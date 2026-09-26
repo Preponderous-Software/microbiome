@@ -69,6 +69,8 @@ namespace {
   }
   .legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
   .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; display: inline-block; }
+  footer { margin-top: 1rem; font-size: 0.75rem; color: var(--muted); }
+  footer a { color: var(--text); }
 </style>
 </head>
 <body>
@@ -82,6 +84,7 @@ namespace {
     <span><i class="dot" style="background:var(--dying)"></i>low energy</span>
     <span><i class="dot" style="background:var(--biomatter)"></i>biomatter</span>
   </div>
+  <footer>More by Daniel Stephenson → <a href="https://danielstephenson.dev">danielstephenson.dev</a></footer>
 
 <script>
   const canvas = document.getElementById("grid");
