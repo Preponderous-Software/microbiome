@@ -53,9 +53,9 @@ rebuilds the affected binaries. `make tests` in particular used to consider a `t
 up to date whenever it was newer than `src/tests.cpp` alone, and could re-run a stale build
 after a change elsewhere.
 
-The two suites overlap, with one gap: the web server's HTTP test (`/api/state`) currently
-lives only in the legacy suite, because `make catch2_tests` deliberately links no Ulfius
-dependency. Run `./run_tests.sh` to cover both.
+The two suites overlap, with one gap: the web server's HTTP tests (`GET /api/state` and the
+index page's footer link) currently live only in the legacy suite, because
+`make catch2_tests` deliberately links no Ulfius dependency. Run `./run_tests.sh` to cover both.
 
 ### Catch2 Features
 - Better test reporting and failure diagnostics
