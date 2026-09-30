@@ -1,5 +1,5 @@
 /*
- * trace-client 0.1.0 (C++) -- https://github.com/Stephenson-Software/trace-client-cpp
+ * trace-client 0.2.0 (C++) -- https://github.com/Stephenson-Software/trace-client-cpp
  *
  * One call to report that a program was used. Copy this header into a project
  * as is; there is nothing else to add. C++11 or later, no library to link
@@ -10,7 +10,7 @@
 #ifndef TRACE_CLIENT_HPP
 #define TRACE_CLIENT_HPP
 
-#define TRACE_CLIENT_VERSION "0.1.0"
+#define TRACE_CLIENT_VERSION "0.2.0"
 
 // The executable that carries a report over HTTPS: the system's own curl
 // (shipped with macOS, with Windows 10 1803 and later, and with nearly every
@@ -77,7 +77,7 @@ extern char **environ;
 
 namespace trace_client {
 
-/** String tags on a report, such as {{"version", "1.4.0"}}. */
+/** String tags on a report, such as {{"name", "home"}}. */
 typedef std::map<std::string, std::string> Tags;
 
 /**
@@ -139,6 +139,23 @@ inline bool isBlank(const std::string &text) {
         if (!std::isspace(static_cast<unsigned char>(text[i]))) return false;
     }
     return true;
+}
+
+inline std::string trim(const std::string &text) {
+    std::size_t begin = 0, end = text.size();
+    while (begin < end && std::isspace(static_cast<unsigned char>(text[begin]))) ++begin;
+    while (end > begin && std::isspace(static_cast<unsigned char>(text[end - 1]))) --end;
+    return text.substr(begin, end - begin);
+}
+
+/**
+ * The event's own tags plus "version", unless the event already carries one.
+ * A copy; the caller's tags are never modified.
+ */
+inline Tags withVersion(const Tags &tags, const std::string &version) {
+    Tags merged(tags);
+    merged.insert(Tags::value_type("version", version)); // never overwrites
+    return merged;
 }
 
 /**
@@ -773,27 +790,40 @@ inline bool environmentOptsOut() {
  * program's own setting (REASON_CONFIG), a blank key (REASON_NO_KEY), or no
  * way to send (REASON_UNAVAILABLE).
  *
- *     trace_client::TraceClient trace("https://trace.example.org", "MyGame",
+ * Every event carries the program's own version as the tag "version" -- the
+ * third argument to the constructor, required, so a "command" event can be
+ * tied to a release as well as a "startup" one. An event's own "version" tag
+ * wins over it. It is trimmed; a blank one, or one longer than MAX_LENGTH
+ * bytes, is treated like a blank base URL or application: nothing throws, the
+ * client reports nothing and disabledReason() is REASON_UNAVAILABLE.
+ *
+ *     trace_client::TraceClient trace("https://trace.example.org", "MyGame", MYGAME_VERSION,
  *                                     settings.key, settings.usageReporting);
- *     trace.report("startup", {{"version", "1.4.0"}});
+ *     trace.report("startup");
  *     ...
  *     trace.close(); // or let the destructor do it
  */
 class TraceClient {
 public:
     /** A client that reports nothing (reason "config"). */
-    TraceClient() : reason_(REASON_CONFIG) {}
+    TraceClient() : version_("disabled"), reason_(REASON_CONFIG) {}
 
-    TraceClient(const std::string &baseUrl, const std::string &application, const std::string &key,
-                bool enabled = true, Logger logger = Logger()) {
+    /**
+     * A client for version (the program's own, sent as the tag "version" on
+     * every event) of application, reporting to the trace server at baseUrl.
+     */
+    TraceClient(const std::string &baseUrl, const std::string &application, const std::string &version,
+                const std::string &key, bool enabled = true, Logger logger = Logger()) {
         try {
+            version_ = detail::trim(version);
             if (environmentOptsOut()) {
                 reason_ = REASON_ENVIRONMENT;
             } else if (!enabled) {
                 reason_ = REASON_CONFIG;
             } else if (detail::isBlank(key)) {
                 reason_ = REASON_NO_KEY;
-            } else if (detail::isBlank(baseUrl) || detail::isBlank(application)) {
+            } else if (detail::isBlank(baseUrl) || detail::isBlank(application) || version_.empty()
+                       || version_.size() > MAX_LENGTH) {
                 reason_ = REASON_UNAVAILABLE;
             } else {
                 start(baseUrl, application, key, logger);
@@ -899,7 +929,8 @@ private:
     void enqueue(const std::string &name, bool hasValue, double value, const Tags &tags) {
         if (!shared_ || detail::isBlank(name)) return;
         try {
-            std::string body = detail::json(shared_->application, name, hasValue, value, tags);
+            std::string body = detail::json(shared_->application, name, hasValue, value,
+                                            detail::withVersion(tags, version_));
             bool full = false;
             {
                 std::lock_guard<std::mutex> lock(shared_->mutex);
@@ -917,6 +948,7 @@ private:
 
     std::shared_ptr<detail::Shared> shared_;
     std::thread thread_;
+    std::string version_;
     std::string reason_;
 };
 

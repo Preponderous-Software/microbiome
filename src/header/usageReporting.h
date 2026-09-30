@@ -1,11 +1,12 @@
 // Usage reporting: tells trace (https://trace.danielstephenson.dev) that
 // microbiome was started, and nothing else.
 //
-// One event, `startup`, tagged with the version; it carries the program name
-// and nothing about the person running it, their machine or the simulation. It is
-// sent through the vendored single-header client (trace_client.hpp) on a
-// thread of its own, so it never delays startup and never stops the program:
-// a machine that is offline, or has no `curl`, simply sends nothing.
+// One event, `startup`, tagged with the version (the client adds it to every
+// event); it carries the program name and nothing about the person running
+// it, their machine or the simulation. It is sent through the vendored
+// single-header client (trace_client.hpp) on a thread of its own, so it
+// never delays startup and never stops the program: a machine that is
+// offline, or has no `curl`, simply sends nothing.
 //
 // Reporting is on by default and turned off by any one of:
 //   - TRACE_USAGE_REPORTING=off or DO_NOT_TRACK=1 in the environment (every
@@ -174,16 +175,20 @@ inline std::string notice(const std::string &path) {
           " TRACE_USAGE_REPORTING=off. Details: " + DETAILS_URL;
 }
 
-/** The version the build was given, else version.txt in the working directory. */
+/**
+ * The version the build was given, else version.txt in the working directory,
+ * else "unknown" -- never blank, since a blank version turns the client off.
+ */
 inline std::string version() {
+    std::string v;
 #if defined(MICROBIOME_VERSION)
-    return MICROBIOME_VERSION;
+    v = trim(MICROBIOME_VERSION);
 #else
     std::ifstream in("version.txt");
     std::string line;
-    if (in && std::getline(in, line)) return trim(line);
-    return std::string();
+    if (in && std::getline(in, line)) v = trim(line);
 #endif
+    return v.empty() ? std::string("unknown") : v;
 }
 
 /**
@@ -214,7 +219,7 @@ public:
             if (!fromEnvironment.empty()) endpoint = fromEnvironment;
             // Always built through the client, even when off: it checks the
             // environment first and records why it is off.
-            client_ = new trace_client::TraceClient(endpoint, PROGRAM_NAME, KEY, enabled);
+            client_ = new trace_client::TraceClient(endpoint, PROGRAM_NAME, version(), KEY, enabled);
         } catch (...) {
             client_ = NULL;
         }
@@ -233,10 +238,8 @@ public:
 
     void reportStartup() {
         if (client_ == NULL) return;
-        trace_client::Tags tags;
-        std::string v = version();
-        if (!v.empty()) tags["version"] = v;
-        client_->report("startup", tags);
+        // The client tags every event with the version it was built with.
+        client_->report("startup");
     }
 
     void close() {
