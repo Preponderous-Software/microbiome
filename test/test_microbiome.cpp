@@ -7,6 +7,14 @@
 #include "../src/header/result.h"
 #include "../src/header/microorganism.h"
 #include "../src/header/microbiome.h"
+#include "../src/header/logger.h"
+
+#include <cstdio>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <unistd.h>
+#include <vector>
 
 // AppConfig Tests
 TEST_CASE("AppConfig setters and getters work correctly", "[appconfig]") {
@@ -299,4 +307,85 @@ TEST_CASE("Simulation runs and produces consistent results", "[simulation]") {
         REQUIRE(result.getEnergy() == simulation.getEnergy());
         REQUIRE(result.getTicksElapsed() == simulation.getTicksElapsed());
     }
+
+    SECTION("Result prints each field under a header") {
+        Result result = Result(&simulation);
+
+        std::ostringstream captured;
+        std::streambuf* original = std::cout.rdbuf(captured.rdbuf());
+        result.print();
+        std::cout.rdbuf(original);
+
+        std::ostringstream expected;
+        expected << "=== Simulation Result ===\n"
+                 << "Surviving Microorganisms: " << result.getSurvivingMicroorganisms() << "\n"
+                 << "Dead Microorganisms: " << result.getDeadMicroorganisms() << "\n"
+                 << "Total Energy: " << result.getEnergy() << "\n"
+                 << "Ticks elapsed: " << result.getTicksElapsed() << "\n";
+        REQUIRE(captured.str() == expected.str());
+    }
+}
+
+// Logger Tests
+// Each test logs to its own temporary file, so nothing here touches the log.*.txt files
+// the simulation itself writes to the working directory.
+namespace {
+
+std::string makeTempLogPath() {
+    char pattern[] = "/tmp/microbiome-logger-XXXXXX";
+    int fd = mkstemp(pattern);
+    close(fd);
+    return pattern;
+}
+
+std::vector<std::string> readLines(const std::string& path) {
+    std::ifstream in(path);
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(in, line)) {
+        lines.push_back(line);
+    }
+    return lines;
+}
+
+}
+
+TEST_CASE("Logger writes each message on its own timestamped line", "[logger]") {
+    std::string path = makeTempLogPath();
+    {
+        Logger logger(path);
+        logger.log("first message");
+        logger.log("second message");
+    }
+
+    std::vector<std::string> lines = readLines(path);
+    REQUIRE(lines.size() == 2);
+    for (const std::string& line : lines) {
+        // "[<ctime() timestamp without its trailing newline>] <message>"; ctime() always
+        // yields the fixed 24-character "Www Mmm dd hh:mm:ss yyyy" form.
+        REQUIRE(line.front() == '[');
+        REQUIRE(line.find("] ") == 25);
+    }
+    REQUIRE(lines[0].substr(lines[0].find("] ") + 2) == "first message");
+    REQUIRE(lines[1].substr(lines[1].find("] ") + 2) == "second message");
+
+    std::remove(path.c_str());
+}
+
+TEST_CASE("Logger truncates an existing log file when constructed", "[logger]") {
+    std::string path = makeTempLogPath();
+    {
+        Logger logger(path);
+        logger.log("from an earlier run");
+    }
+    {
+        Logger logger(path);
+        logger.log("from this run");
+    }
+
+    std::vector<std::string> lines = readLines(path);
+    REQUIRE(lines.size() == 1);
+    REQUIRE(lines[0].substr(lines[0].find("] ") + 2) == "from this run");
+
+    std::remove(path.c_str());
 }
