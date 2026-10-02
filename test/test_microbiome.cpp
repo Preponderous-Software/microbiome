@@ -155,6 +155,82 @@ TEST_CASE("Microorganism reproduction increases the population", "[microbiome]")
     REQUIRE(microbiome.getMicroorganisms().size() > populationBefore);
 }
 
+// A 2x2 grid holds two microorganisms and gives every location two neighbours, so a parent always
+// has somewhere to place its daughter. Neither organism can forage (nothing has died, so there is
+// no biomatter), which leaves metabolism and fission as the only changes to their energy.
+TEST_CASE("Binary fission splits the parent's remaining energy between two daughters", "[microbiome]") {
+    int id = 0;
+    int size = 2;
+    int entityFactor = 1;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
+
+    std::vector<Microorganism*> microorganisms = microbiome.getMicroorganisms();
+    REQUIRE(microorganisms.size() == 2);
+    Microorganism* parent = microorganisms[0];
+    Microorganism* bystander = microorganisms[1];
+    bystander->setMetabolicRate(1);
+    bystander->setEnergy(500);
+
+    SECTION("each daughter receives half of what is left after the fission cost") {
+        parent->setMetabolicRate(2);
+        parent->setEnergy(950);
+
+        microbiome.initiateMicroorganismMovement();
+
+        std::vector<Microorganism*> after = microbiome.getMicroorganisms();
+        REQUIRE(after.size() == 3);
+        REQUIRE(microbiome.getNumEntities() == 3);
+        // 950 - 2 (metabolism) = 948; (948 - 100 fission cost) / 2 = 424
+        REQUIRE(parent->getEnergy() == 424);
+        REQUIRE(bystander->getEnergy() == 499);
+
+        Microorganism* daughter = after[2];
+        // entity ids continue on from the size x entityFactor initial population
+        REQUIRE(daughter->getId() == 2);
+        REQUIRE(daughter->getMetabolicRate() == 2);
+        // the daughter is appended to the population mid-tick, so it moves and metabolizes in
+        // the same tick it was created in: 424 - 2 = 422
+        REQUIRE(daughter->getTimesMoved() == 1);
+        REQUIRE(daughter->getEnergy() == 422);
+    }
+
+    SECTION("an organism at exactly the threshold after metabolizing divides") {
+        parent->setMetabolicRate(1);
+        parent->setEnergy(901);
+
+        microbiome.initiateMicroorganismMovement();
+
+        REQUIRE(microbiome.getMicroorganisms().size() == 3);
+        // (900 - 100) / 2 = 400
+        REQUIRE(parent->getEnergy() == 400);
+    }
+
+    SECTION("an organism one unit below the threshold after metabolizing does not divide") {
+        parent->setMetabolicRate(1);
+        parent->setEnergy(900);
+
+        microbiome.initiateMicroorganismMovement();
+
+        REQUIRE(microbiome.getMicroorganisms().size() == 2);
+        REQUIRE(parent->getEnergy() == 899);
+    }
+}
+
+// On a 1x1 grid nothing can move or divide (there are no adjacent locations), so the parent keeps
+// every unit of energy and the population is unchanged however much energy it holds.
+TEST_CASE("Binary fission needs an adjacent location for the daughter", "[microbiome]") {
+    Microbiome microbiome(0, "Test Microbiome", 1, 1);
+    Microorganism* microorganism = microbiome.getMicroorganisms()[0];
+    microorganism->setMetabolicRate(1);
+    microorganism->setEnergy(1000);
+
+    microbiome.initiateMicroorganismMovement();
+
+    REQUIRE(microbiome.getMicroorganisms().size() == 1);
+    REQUIRE(microorganism->getEnergy() == 999);
+}
+
 TEST_CASE("Death produces forageable biomatter", "[microbiome]") {
     int id = 0;
     int size = 3;
@@ -243,6 +319,73 @@ TEST_CASE("Microbiome total energy is clamped at zero", "[microbiome]") {
     }
 
     REQUIRE(microbiome.getTotalEnergy() == 0);
+}
+
+// Console representation Tests
+// Each cell is printed as " <glyph> ", one grid row per line, between two borders of
+// 3 x size '=' characters, with a blank line before the first border and after the last.
+namespace {
+
+std::string renderConsole(Microbiome& microbiome) {
+    std::ostringstream captured;
+    std::streambuf* original = std::cout.rdbuf(captured.rdbuf());
+    microbiome.printConsoleRepresentation();
+    std::cout.rdbuf(original);
+    return captured.str();
+}
+
+std::string singleCellFrame(const std::string& glyph) {
+    return "\n===\n " + glyph + " \n===\n\n";
+}
+
+}
+
+TEST_CASE("Console representation draws a bordered row per grid row", "[microbiome][console]") {
+    // an entity factor of 0 leaves the 3x3 grid empty
+    Microbiome microbiome(0, "Test Microbiome", 3, 0);
+
+    REQUIRE(renderConsole(microbiome) ==
+            "\n=========\n"
+            "         \n"
+            "         \n"
+            "         \n"
+            "=========\n\n");
+}
+
+// A 1x1 grid holds a single cell, so the frame is fully determined by that cell's glyph.
+TEST_CASE("Console representation glyphs reflect each microorganism's state", "[microbiome][console]") {
+    Microbiome microbiome(0, "Test Microbiome", 1, 1);
+    Microorganism* microorganism = microbiome.getMicroorganisms()[0];
+    microorganism->setEnergy(500);
+
+    SECTION("a microorganism that has never foraged is drawn as o") {
+        REQUIRE(renderConsole(microbiome) == singleCellFrame("o"));
+    }
+
+    SECTION("a microorganism that has foraged is drawn as +") {
+        microorganism->incrementTimesEaten();
+        REQUIRE(renderConsole(microbiome) == singleCellFrame("+"));
+    }
+
+    SECTION("a microorganism below 10 energy is drawn as !, even if it has foraged") {
+        microorganism->incrementTimesEaten();
+        microorganism->setEnergy(9);
+        REQUIRE(renderConsole(microbiome) == singleCellFrame("!"));
+    }
+
+    SECTION("a microorganism with exactly 10 energy is not yet drawn as dying") {
+        microorganism->setEnergy(10);
+        REQUIRE(renderConsole(microbiome) == singleCellFrame("o"));
+    }
+
+    SECTION("the biomatter left by a death is drawn as .") {
+        microorganism->setMetabolicRate(1);
+        microorganism->setEnergy(1);
+        microbiome.initiateMicroorganismMovement();
+
+        REQUIRE(microbiome.getMicroorganisms().empty());
+        REQUIRE(renderConsole(microbiome) == singleCellFrame("."));
+    }
 }
 
 // Biomatter Tests
