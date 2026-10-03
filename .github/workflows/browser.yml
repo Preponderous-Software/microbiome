@@ -1,0 +1,43 @@
+# Builds the browser (Emscripten) version with web/build.sh and, when enabled,
+# deploys it to arcade as https://microbiome.play.danielstephenson.dev
+# (the server-backed viewer at microbiome.preponderous.org is separate and
+# unaffected by this workflow).
+name: Browser build
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 6.0.10
+      - name: Build (web/build.sh)
+        run: web/build.sh
+      - name: Check the page, script and module exist
+        run: |
+          test -s web/build/index.html
+          test -s web/build/index.js
+          test -s web/build/index.wasm
+          grep -q 'danielstephenson.dev/play' web/build/index.html
+      - name: Write the deploy version
+        run: echo "$(tr -d '[:space:]' < version.txt)+g${GITHUB_SHA::7}" > "$RUNNER_TEMP/arcade-version.txt" && cat "$RUNNER_TEMP/arcade-version.txt"
+      - name: Deploy to arcade
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && vars.ARCADE_ENABLED == 'true')
+        uses: Stephenson-Software/arcade-deploy@v1
+        with:
+          slug: microbiome
+          token: ${{ secrets.ARCADE_TOKEN }}
+          site-dir: web/build
+          version-file: ${{ runner.temp }}/arcade-version.txt

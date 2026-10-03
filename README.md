@@ -1,6 +1,16 @@
 # microbiome
 This application allows the user to witness the activity of a virtual microbial community.
 
+## Play in your browser
+The simulation also runs entirely in your browser (compiled to WebAssembly with Emscripten), no server needed:
+
+- https://microbiome.play.danielstephenson.dev
+- or find it among the other games at https://danielstephenson.dev/play
+
+This is in addition to the existing server-backed live viewer at https://microbiome.preponderous.org, which stays as it is.
+
+To build it yourself, activate an [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) (CI uses 6.0.10) and run `make web` (or `web/build.sh`). It writes `web/build/index.html`, `index.js` and `index.wasm`; serve that directory with any static file server, e.g. `python3 -m http.server -d web/build 8000`, and open http://localhost:8000. The entry point is `src/browser.cpp` (the page is `web/shell.html`): it runs the same `Microbiome` the console app and web server run, one tick every 200 ms, starting a new generation after an extinction just like `mb_webapp`. It reports no usage, writes no log files, and the native targets never compile it. `.github/workflows/browser.yml` builds it on every pull request and push.
+
 ## Example Console Output
 ```
 ==============================
