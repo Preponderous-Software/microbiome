@@ -1,4 +1,7 @@
 # microbiome
+
+[![Play in your browser](https://img.shields.io/badge/Play-in%20your%20browser-2ea44f)](https://danielstephenson.dev/play/microbiome)
+
 This application allows the user to witness the activity of a virtual microbial community.
 
 ## Play in your browser
