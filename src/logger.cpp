@@ -5,6 +5,12 @@
 
 Logger::Logger(std::string filename) {
     this->filename = filename;
+#ifdef __EMSCRIPTEN__
+    // In the browser there is nobody to read a log file, and an in-memory one
+    // would only grow for as long as the tab stays open.
+    debug = false;
+    return;
+#endif
     file.open(filename);
 }
 

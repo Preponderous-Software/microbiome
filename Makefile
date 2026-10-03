@@ -22,7 +22,7 @@ ULFIUS_FLAGS = $(shell pkg-config --cflags --libs libulfius jansson)
 # it was newer than src/tests.cpp alone, and re-run a stale binary after a change
 # to any other translation unit. `test` needs .PHONY for a second reason: a
 # directory named test/ exists, so make would otherwise treat it as a file target.
-.PHONY: all mbapp catch2_tests test webapp clean
+.PHONY: all mbapp catch2_tests test webapp web clean
 
 all: mbapp tests catch2_tests webapp
 
@@ -49,6 +49,11 @@ mb_tests: $(CATCH2_TEST_FILE) $(PROJECT_FILES) $(ENVLIBCPP_FILES) $(HEADERS) $(C
 
 mb_webapp: $(WEBAPP_FILE) $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(HEADERS)
 	g++ $(WARNING_FLAGS) -pthread $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(WEBAPP_FILE) $(ULFIUS_FLAGS) -o mb_webapp
+
+# Browser (Emscripten) build into web/build/; needs em++ on PATH, so it is not
+# part of `all`. See web/build.sh and the README's "Play in your browser".
+web:
+	web/build.sh
 
 clean:
 	rm -f mb_app tests mb_tests mb_webapp

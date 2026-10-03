@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Microbiome</title>
+<meta name="description" content="A virtual microbial community, simulated in your browser.">
+<style>
+  /* Same look as the server-backed viewer (src/webServer.cpp INDEX_HTML). */
+  :root {
+    color-scheme: dark;
+    --bg: #0b1210;
+    --panel: #111a17;
+    --text: #d8e6df;
+    --muted: #7fa08f;
+    --grid: #1c2b26;
+    --alive: #4fd67a;
+    --subsisting: #4fa9d6;
+    --dying: #e05252;
+    --biomatter: #b58a4a;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem 16px 3rem;
+  }
+  h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+  .subtitle { margin: 0; color: var(--muted); font-size: 0.85rem; text-align: center; max-width: 36rem; line-height: 1.4; }
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.5rem;
+    background: var(--panel);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.85rem;
+    min-height: 2.6rem;
+    max-width: 100%;
+  }
+  .stats span strong { color: var(--text); font-variant-numeric: tabular-nums; }
+  .stats span { color: var(--muted); }
+  canvas {
+    display: block;
+    background: var(--grid);
+    border-radius: 0.75rem;
+    width: min(600px, 100%);
+    aspect-ratio: 1 / 1;
+    height: auto;
+  }
+  .stage { width: min(600px, 100%); }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; display: inline-block; }
+  .square { border-radius: 0.1rem; }
+  button {
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--bg);
+    background: var(--alive);
+    border: 0;
+    border-radius: 999px;
+    padding: 0.6rem 1.4rem;
+    min-height: 44px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .status { margin: 0; font-size: 0.8rem; color: var(--muted); min-height: 1em; }
+  footer { margin-top: 1rem; font-size: 0.75rem; color: var(--muted); text-align: center; }
+  footer a { color: var(--text); }
+</style>
+</head>
+<body>
+  <h1>Microbiome</h1>
+  <p class="subtitle">You're watching a virtual microbial community: microorganisms wander a grid, burn energy, die and decompose into biomatter, and the survivors forage it and divide. When the last one dies, a new generation begins.</p>
+  <div class="stats" id="stats" aria-live="off"></div>
+  <div class="stage"><canvas id="grid" width="600" height="600" aria-label="Simulation grid"></canvas></div>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--alive)"></i>alive</span>
+    <span><i class="dot" style="background:var(--subsisting)"></i>foraging</span>
+    <span><i class="dot" style="background:var(--dying)"></i>low energy</span>
+    <span><i class="dot square" style="background:var(--biomatter)"></i>biomatter</span>
+  </div>
+  <button id="restart" type="button" disabled>Restart</button>
+  <p class="status" id="status">Loading…</p>
+  <footer>More by Daniel Stephenson → <a href="https://danielstephenson.dev/play">danielstephenson.dev/play</a></footer>
+
+<script>
+  const canvas = document.getElementById("grid");
+  const ctx = canvas.getContext("2d");
+  const statsEl = document.getElementById("stats");
+  const statusEl = document.getElementById("status");
+  const restartBtn = document.getElementById("restart");
+  const style = getComputedStyle(document.documentElement);
+  const colors = {};
+  for (const name of ["--alive", "--subsisting", "--dying", "--biomatter"]) {
+    colors[name] = style.getPropertyValue(name).trim();
+  }
+
+  // Keep the backing store sharp on high-DPI screens while CSS scales it to fit.
+  function sizeCanvas() {
+    const cssSize = canvas.getBoundingClientRect().width || 600;
+    const px = Math.round(cssSize * (window.devicePixelRatio || 1));
+    if (canvas.width !== px) {
+      canvas.width = px;
+      canvas.height = px;
+      if (lastState) render(lastState);
+    }
+  }
+
+  let lastState = null;
+
+  function render(state) {
+    lastState = state;
+    const cell = canvas.width / state.gridSize;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = colors["--biomatter"];
+    const size = cell * 0.35;
+    for (const [x, y] of state.biomatter) {
+      ctx.fillRect(x * cell + (cell - size) / 2, y * cell + (cell - size) / 2, size, size);
+    }
+
+    for (const [x, y, energy, timesEaten] of state.microorganisms) {
+      let fill = colors["--alive"];
+      if (energy < 10) {
+        fill = colors["--dying"];
+      } else if (timesEaten > 0) {
+        fill = colors["--subsisting"];
+      }
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.arc(x * cell + cell / 2, y * cell + cell / 2, cell * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    statsEl.innerHTML = `
+      <span>generation <strong>${state.generation}</strong></span>
+      <span>tick <strong>${state.tick}</strong></span>
+      <span>alive <strong>${state.aliveCount}</strong></span>
+      <span>total deaths <strong>${state.deadCount}</strong></span>
+      <span>total energy <strong>${state.totalEnergy}</strong></span>
+    `;
+  }
+
+  var Module = {
+    canvas: canvas,
+    onMicrobiomeState: render,
+    print: (text) => console.log(text),
+    printErr: (text) => console.warn(text),
+    onRuntimeInitialized: () => {
+      statusEl.textContent = "";
+      restartBtn.disabled = false;
+    },
+    onAbort: (what) => {
+      statusEl.textContent = "The simulation stopped unexpectedly. Reload the page to start again.";
+      restartBtn.disabled = true;
+    },
+  };
+
+  restartBtn.addEventListener("click", () => {
+    Module.ccall("mb_restart", null, [], []);
+  });
+
+  window.addEventListener("resize", sizeCanvas);
+  sizeCanvas();
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>
