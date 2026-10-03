@@ -1,9 +1,9 @@
 // Usage reporting: tells trace (https://trace.danielstephenson.dev) that
 // microbiome was started, and nothing else.
 //
-// One event, `startup`, tagged with the version (the client adds it to every
-// event); it carries the program name and nothing about the person running
-// it, their machine or the simulation. It is sent through the vendored
+// One event, `startup`, tagged with the version and a random installation ID
+// (the client adds both to every event); it carries the program name and
+// nothing about the person running it, their machine or the simulation. It is sent through the vendored
 // single-header client (trace_client.hpp) on a thread of its own, so it
 // never delays startup and never stops the program: a machine that is
 // offline, or has no `curl`, simply sends nothing.
@@ -16,6 +16,13 @@
 // The first run prints one notice saying so, on stderr; the settings file it
 // leaves behind is what keeps the notice from repeating. When the environment
 // has already opted out, nothing is printed and no file is written.
+//
+// The installation ID (the tag `install`) is a random UUID the client keeps in
+// trace-install-id in the user's data directory (see installIdPath()), so
+// trace can count installations rather than startups. Deleting the file
+// resets it; TRACE_INSTALL_ID, when set and not blank, is sent instead and the
+// file is left alone. The client only reads or writes the file when reporting
+// is on, so every opt-out above also stops it.
 // Details: https://github.com/Stephenson-Software/trace#usage-reporting
 #ifndef MICROBIOME_USAGE_REPORTING_H
 #define MICROBIOME_USAGE_REPORTING_H
@@ -49,6 +56,9 @@ static const char *const DETAILS_URL = "https://github.com/Stephenson-Software/t
 // Points reporting at another server, e.g. a local stub while testing.
 static const char *const ENV_ENDPOINT = "MICROBIOME_USAGE_REPORTING_ENDPOINT";
 static const char *const SETTINGS_FILENAME = "usage-reporting.conf";
+static const char *const INSTALL_ID_FILENAME = "trace-install-id";
+// Pins the installation ID (e.g. for a container); sent instead of the file's.
+static const char *const ENV_INSTALL_ID = "TRACE_INSTALL_ID";
 
 inline std::string environment(const char *name) {
     const char *value = std::getenv(name);
@@ -122,6 +132,54 @@ inline std::string lowered(std::string text) {
     return text;
 }
 
+/**
+ * The user's data directory for this program, named after PROGRAM_NAME in
+ * lower case: %APPDATA%\<name> on Windows, ~/Library/Application
+ * Support/<name> on macOS, and $XDG_DATA_HOME/<name> (default
+ * ~/.local/share/<name>) elsewhere. Empty when there is no home to put it in.
+ */
+inline std::string dataDirectory() {
+    std::string name = lowered(PROGRAM_NAME);
+#if defined(_WIN32)
+    std::string base = environment("APPDATA");
+    return base.empty() ? std::string() : base + "\\" + name;
+#elif defined(__APPLE__)
+    std::string home = environment("HOME");
+    return home.empty() ? std::string() : home + "/Library/Application Support/" + name;
+#else
+    std::string base = environment("XDG_DATA_HOME");
+    if (base.empty()) {
+        std::string home = environment("HOME");
+        if (home.empty()) return std::string();
+        base = home + "/.local/share";
+    }
+    return base + "/" + name;
+#endif
+}
+
+/** The installation ID's file, or empty when there is no data directory. */
+inline std::string installIdPath() {
+    std::string directory = dataDirectory();
+    if (directory.empty()) return std::string();
+#if defined(_WIN32)
+    return directory + "\\" + INSTALL_ID_FILENAME;
+#else
+    return directory + "/" + INSTALL_ID_FILENAME;
+#endif
+}
+
+/**
+ * What the client is given as the installation ID: TRACE_INSTALL_ID when it is
+ * set and not blank, else the file at installIdPath(). The client resolves it
+ * only after its own opt-out checks, so a disabled client never writes the file.
+ */
+inline trace_client::InstallId installIdSource() {
+    std::string pinned = trim(environment(ENV_INSTALL_ID));
+    if (!pinned.empty()) return trace_client::InstallId::of(pinned);
+    std::string path = installIdPath();
+    return path.empty() ? trace_client::InstallId() : trace_client::InstallId::fromFile(path);
+}
+
 /** What the settings file says. Anything unreadable leaves reporting on. */
 struct Settings {
     bool exists;
@@ -158,9 +216,11 @@ inline std::string settingsFileContent() {
     return std::string("# ") + PROGRAM_NAME + " usage reporting - "
         + DETAILS_URL + "\n"
         "#\n"
-        "# " + PROGRAM_NAME + " sends one startup event (its name and version) to\n"
-        "# https://trace.danielstephenson.dev - nothing about you, your machine or\n"
-        "# the simulation. Set enabled to false to turn it off. TRACE_USAGE_REPORTING=off\n"
+        "# " + PROGRAM_NAME + " sends one startup event (its name, its version and a\n"
+        "# random installation ID) to https://trace.danielstephenson.dev - nothing\n"
+        "# about you, your machine or the simulation. The ID is kept in\n"
+        "# " + (installIdPath().empty() ? std::string(INSTALL_ID_FILENAME) : installIdPath()) + "\n"
+        "# - delete that file to reset it. Set enabled to false to turn it off. TRACE_USAGE_REPORTING=off\n"
         "# or DO_NOT_TRACK=1 in the environment turns it off for every\n"
         "# trace-reporting program. This file also records that the notice was shown.\n"
         "enabled=true\n";
@@ -169,8 +229,9 @@ inline std::string settingsFileContent() {
 inline std::string notice(const std::string &path) {
     std::string where = path.empty() ? std::string("the settings file") : path;
     return std::string("Usage reporting is on: ") + PROGRAM_NAME
-        + " sends a startup event (its name and version) to https://trace.danielstephenson.dev"
-          " - nothing about you, your machine or the simulation. Turn it off with enabled=false in "
+        + " sends a startup event (its name, its version and a random installation ID, kept in "
+        + (installIdPath().empty() ? std::string(INSTALL_ID_FILENAME) : installIdPath())
+        + ") to https://trace.danielstephenson.dev - nothing about you, your machine or the simulation. Turn it off with enabled=false in "
         + where + ", or for every trace-reporting program with the environment variable"
           " TRACE_USAGE_REPORTING=off. Details: " + DETAILS_URL;
 }
@@ -219,7 +280,7 @@ public:
             if (!fromEnvironment.empty()) endpoint = fromEnvironment;
             // Always built through the client, even when off: it checks the
             // environment first and records why it is off.
-            client_ = new trace_client::TraceClient(endpoint, PROGRAM_NAME, version(), KEY, enabled);
+            client_ = new trace_client::TraceClient(endpoint, PROGRAM_NAME, version(), KEY, installIdSource(), enabled);
         } catch (...) {
             client_ = NULL;
         }
@@ -234,6 +295,11 @@ public:
 
     std::string disabledReason() const {
         return client_ == NULL ? std::string(trace_client::REASON_UNAVAILABLE) : client_->disabledReason();
+    }
+
+    /** The installation ID every event carries; empty when reporting is off. */
+    std::string installId() const {
+        return client_ == NULL ? std::string() : client_->installId();
     }
 
     void reportStartup() {

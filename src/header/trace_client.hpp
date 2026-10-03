@@ -1,5 +1,5 @@
 /*
- * trace-client 0.2.0 (C++) -- https://github.com/Stephenson-Software/trace-client-cpp
+ * trace-client 0.3.0 (C++) -- https://github.com/Stephenson-Software/trace-client-cpp
  *
  * One call to report that a program was used. Copy this header into a project
  * as is; there is nothing else to add. C++11 or later, no library to link
@@ -10,7 +10,7 @@
 #ifndef TRACE_CLIENT_HPP
 #define TRACE_CLIENT_HPP
 
-#define TRACE_CLIENT_VERSION "0.2.0"
+#define TRACE_CLIENT_VERSION "0.3.0"
 
 // The executable that carries a report over HTTPS: the system's own curl
 // (shipped with macOS, with Windows 10 1803 and later, and with nearly every
@@ -21,20 +21,30 @@
 #endif
 
 #include <cctype>
+#include <cerrno>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <fstream>
 #include <functional>
 #include <locale>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <sstream>
 #include <string>
 #include <thread>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#if defined(_WIN32)
+#include <direct.h>
+#endif
 
 #if defined(TRACE_CLIENT_USE_LIBCURL)
 #include <curl/curl.h>
@@ -252,6 +262,93 @@ inline std::string number(double value) {
  * The report body. JSON is written by hand so this file has no dependencies;
  * the shape is fixed and small, three scalars and a flat string map.
  */
+/** The tag every event carries the installation's ID as. */
+static const char *const INSTALL_TAG = "install";
+
+/**
+ * The tags plus "install", unless they already carry one, there is no ID, or
+ * adding it would pass MAX_TAGS. A copy; the caller's tags are never modified.
+ */
+inline Tags withInstall(const Tags &tags, const std::string &installId) {
+    if (installId.empty() || tags.count(INSTALL_TAG) != 0 || tags.size() >= MAX_TAGS) return tags;
+    Tags merged(tags);
+    merged.insert(Tags::value_type(INSTALL_TAG, installId));
+    return merged;
+}
+
+/** Whether text is a usable installation ID: 1..MAX_LENGTH of [A-Za-z0-9_.-]. */
+inline bool isValidInstallId(const std::string &text) {
+    if (text.empty() || text.size() > MAX_LENGTH) return false;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        unsigned char c = static_cast<unsigned char>(text[i]);
+        bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+            || c == '_' || c == '.' || c == '-';
+        if (!ok) return false;
+    }
+    return true;
+}
+
+/**
+ * A random (version 4) UUID, lower-case 8-4-4-4-12 hex. Derived from nothing
+ * but std::random_device; falls back to the clock if that is unavailable.
+ */
+inline std::string randomUuid() {
+    unsigned long long hi = 0, lo = 0;
+    try {
+        std::random_device device;
+        std::seed_seq seed{device(), device(), device(), device(), device(), device(), device(), device()};
+        std::mt19937_64 engine(seed);
+        hi = engine();
+        lo = engine();
+    } catch (...) {
+        std::mt19937_64 engine(static_cast<unsigned long long>(
+            std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+        hi = engine();
+        lo = engine();
+    }
+    hi = (hi & ~0xF000ULL) | 0x4000ULL;                                         // version 4
+    lo = (lo & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;                 // RFC 4122 variant
+    char out[37];
+    std::snprintf(out, sizeof out, "%08llx-%04llx-%04llx-%04llx-%012llx",
+                  (hi >> 32) & 0xFFFFFFFFULL, (hi >> 16) & 0xFFFFULL, hi & 0xFFFFULL,
+                  (lo >> 48) & 0xFFFFULL, lo & 0xFFFFFFFFFFFFULL);
+    return std::string(out);
+}
+
+enum PathKind { PATH_MISSING, PATH_FILE, PATH_OTHER };
+
+/** Missing (may be created), a regular file, or anything else (left alone). */
+inline PathKind pathKind(const std::string &path) {
+#if defined(_WIN32)
+    struct _stat info;
+    if (_stat(path.c_str(), &info) != 0) {
+        return errno == ENOENT || errno == ENOTDIR ? PATH_MISSING : PATH_OTHER;
+    }
+    return (info.st_mode & _S_IFMT) == _S_IFREG ? PATH_FILE : PATH_OTHER;
+#else
+    struct stat info;
+    if (::stat(path.c_str(), &info) != 0) {
+        return errno == ENOENT || errno == ENOTDIR ? PATH_MISSING : PATH_OTHER;
+    }
+    return S_ISREG(info.st_mode) ? PATH_FILE : PATH_OTHER;
+#endif
+}
+
+/** Creates every missing directory above path. Failures are ignored: the write that follows says. */
+inline void makeParentDirectories(const std::string &path) {
+    for (std::size_t i = 1; i < path.size(); ++i) {
+        char c = path[i];
+#if defined(_WIN32)
+        if (c != '/' && c != '\\') continue;
+        if (path[i - 1] == ':') continue; // a drive, "C:\\"
+        _mkdir(path.substr(0, i).c_str());
+#else
+        if (c != '/') continue;
+        ::mkdir(path.substr(0, i).c_str(), 0777);
+#endif
+    }
+}
+
 inline std::string json(const std::string &application, const std::string &name,
                         bool hasValue, double value, const Tags &tags) {
     std::string out = "{\"application\":" + quote(cleanUtf8(application, std::string::npos));
@@ -772,6 +869,29 @@ inline bool environmentOptsOut() {
 }
 
 /**
+ * Where an installation's ID comes from, for the constructor that takes one.
+ * An explicit id wins over a file; with neither, no "install" tag is sent.
+ */
+struct InstallId {
+    /** An ID the program stores itself. Trimmed; blank means none. */
+    std::string id;
+    /** A file installIdFromFile keeps a random UUID in. Blank means none. */
+    std::string file;
+
+    static InstallId of(const std::string &id) {
+        InstallId install;
+        install.id = id;
+        return install;
+    }
+
+    static InstallId fromFile(const std::string &path) {
+        InstallId install;
+        install.file = path;
+        return install;
+    }
+};
+
+/**
  * Reports usage events to a trace server, and never gets in the way of the
  * program doing the reporting.
  *
@@ -797,8 +917,19 @@ inline bool environmentOptsOut() {
  * bytes, is treated like a blank base URL or application: nothing throws, the
  * client reports nothing and disabledReason() is REASON_UNAVAILABLE.
  *
+ * Every event can also carry a random per-installation ID as the tag
+ * "install", so the trace server can count installations rather than raw
+ * events. There is no hidden default: without an InstallId argument no
+ * "install" tag is sent. InstallId::fromFile(path) keeps a random UUID in a
+ * file the program chooses (see installIdFromFile); InstallId::of(id) passes
+ * one the program stores itself. Either is resolved only once every opt-out
+ * above has been checked, so a disabled client never makes up an ID or writes
+ * one. An event's own "install" tag wins, and it is never added past MAX_TAGS.
+ *
  *     trace_client::TraceClient trace("https://trace.example.org", "MyGame", MYGAME_VERSION,
- *                                     settings.key, settings.usageReporting);
+ *                                     settings.key,
+ *                                     trace_client::InstallId::fromFile(dataDir + "/trace-install-id"),
+ *                                     settings.usageReporting);
  *     trace.report("startup");
  *     ...
  *     trace.close(); // or let the destructor do it
@@ -811,27 +942,64 @@ public:
     /**
      * A client for version (the program's own, sent as the tag "version" on
      * every event) of application, reporting to the trace server at baseUrl.
+     * Its events carry no "install" tag; see the overload taking an InstallId.
      */
     TraceClient(const std::string &baseUrl, const std::string &application, const std::string &version,
                 const std::string &key, bool enabled = true, Logger logger = Logger()) {
+        init(baseUrl, application, version, key, InstallId(), enabled, logger);
+    }
+
+    /**
+     * As above, and every event carries the installation's ID (install) as
+     * the tag "install". The explicit ID is trimmed; a blank one means none,
+     * and one longer than MAX_LENGTH bytes is treated like an overlong
+     * version: nothing throws, the client reports nothing and
+     * disabledReason() is REASON_UNAVAILABLE.
+     */
+    TraceClient(const std::string &baseUrl, const std::string &application, const std::string &version,
+                const std::string &key, const InstallId &install, bool enabled = true, Logger logger = Logger()) {
+        init(baseUrl, application, version, key, install, enabled, logger);
+    }
+
+    /**
+     * The installation's ID kept in the file at path: the first line that is
+     * 1..MAX_LENGTH characters of [A-Za-z0-9_.-] (surrounding whitespace
+     * ignored). When the file is missing, or has no such line, a new random
+     * UUID is written to it (parent directories created) and returned. When
+     * the path exists but cannot be read, or the write fails, a new random
+     * UUID is returned for this process only and nothing is written. Never
+     * throws.
+     *
+     * Calling this directly writes the file whatever the opt-outs say; pass
+     * InstallId::fromFile(path) to the constructor instead so that a disabled
+     * client never writes it.
+     */
+    static std::string installIdFromFile(const std::string &path) {
+        std::string fresh;
         try {
-            version_ = detail::trim(version);
-            if (environmentOptsOut()) {
-                reason_ = REASON_ENVIRONMENT;
-            } else if (!enabled) {
-                reason_ = REASON_CONFIG;
-            } else if (detail::isBlank(key)) {
-                reason_ = REASON_NO_KEY;
-            } else if (detail::isBlank(baseUrl) || detail::isBlank(application) || version_.empty()
-                       || version_.size() > MAX_LENGTH) {
-                reason_ = REASON_UNAVAILABLE;
-            } else {
-                start(baseUrl, application, key, logger);
+            fresh = detail::randomUuid();
+            detail::PathKind kind = detail::pathKind(path);
+            if (path.empty() || kind == detail::PATH_OTHER) return fresh;
+            if (kind == detail::PATH_FILE) {
+                std::ifstream in(path.c_str(), std::ios::in | std::ios::binary);
+                if (!in) return fresh; // there but unreadable: never overwritten
+                std::string line;
+                while (std::getline(in, line)) {
+                    std::string id = detail::trim(line);
+                    if (detail::isValidInstallId(id)) return id;
+                }
+                if (in.bad()) return fresh;
+            }
+            detail::makeParentDirectories(path);
+            std::ofstream out(path.c_str(), std::ios::out | std::ios::trunc | std::ios::binary);
+            if (out) {
+                out << fresh << '\n';
+                out.flush();
             }
         } catch (...) {
-            shared_.reset();
-            reason_ = REASON_UNAVAILABLE;
+            // an ID that only lives in memory is still an ID
         }
+        return fresh;
     }
 
     ~TraceClient() { close(); }
@@ -844,6 +1012,13 @@ public:
      * of the REASON_* strings, verbatim. Unchanged by close().
      */
     const std::string &disabledReason() const { return reason_; }
+
+    /**
+     * The installation's ID every event carries as the tag "install": empty
+     * when the client is disabled or was given no InstallId. Unchanged by
+     * close().
+     */
+    const std::string &installId() const { return installId_; }
 
     /** Reports that name happened, with optional tags. Returns immediately. */
     void report(const std::string &name, const Tags &tags = Tags()) { enqueue(name, false, 0.0, tags); }
@@ -894,6 +1069,39 @@ private:
     TraceClient(const TraceClient &);
     TraceClient &operator=(const TraceClient &);
 
+    void init(const std::string &baseUrl, const std::string &application, const std::string &version,
+              const std::string &key, const InstallId &install, bool enabled, const Logger &logger) {
+        try {
+            version_ = detail::trim(version);
+            std::string explicitId = detail::trim(install.id);
+            if (environmentOptsOut()) {
+                reason_ = REASON_ENVIRONMENT;
+            } else if (!enabled) {
+                reason_ = REASON_CONFIG;
+            } else if (detail::isBlank(key)) {
+                reason_ = REASON_NO_KEY;
+            } else if (detail::isBlank(baseUrl) || detail::isBlank(application) || version_.empty()
+                       || version_.size() > MAX_LENGTH || explicitId.size() > MAX_LENGTH) {
+                reason_ = REASON_UNAVAILABLE;
+            } else {
+                start(baseUrl, application, key, logger);
+                // After the opt-outs, never before: a disabled client neither
+                // makes up an ID nor writes one to disk.
+                if (shared_) {
+                    if (!explicitId.empty()) {
+                        installId_ = explicitId;
+                    } else if (!detail::isBlank(install.file)) {
+                        installId_ = installIdFromFile(install.file);
+                    }
+                }
+            }
+        } catch (...) {
+            shared_.reset();
+            installId_.clear();
+            reason_ = REASON_UNAVAILABLE;
+        }
+    }
+
     void start(const std::string &baseUrl, const std::string &application, const std::string &key,
                const Logger &logger) {
 #if defined(TRACE_CLIENT_CAN_SEND)
@@ -930,7 +1138,7 @@ private:
         if (!shared_ || detail::isBlank(name)) return;
         try {
             std::string body = detail::json(shared_->application, name, hasValue, value,
-                                            detail::withVersion(tags, version_));
+                                            detail::withInstall(detail::withVersion(tags, version_), installId_));
             bool full = false;
             {
                 std::lock_guard<std::mutex> lock(shared_->mutex);
@@ -950,6 +1158,7 @@ private:
     std::thread thread_;
     std::string version_;
     std::string reason_;
+    std::string installId_;
 };
 
 } // namespace trace_client
