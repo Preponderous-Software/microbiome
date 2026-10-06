@@ -9,6 +9,8 @@
 
 #include <chrono>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <iostream>
 #include <thread>
@@ -252,7 +254,8 @@ void testSimulationResults() {
 }
 
 // web server tests -------------------------------------------------------------
-std::string httpGetBody(int port, std::string path) {
+// The whole response, status line and headers included.
+std::string httpGet(int port, std::string path) {
     for (int attempt = 0; attempt < 40; attempt++) {
         int sock = socket(AF_INET, SOCK_STREAM, 0);
         struct sockaddr_in addr;
@@ -272,12 +275,7 @@ std::string httpGetBody(int port, std::string path) {
                 response.append(buffer, bytesRead);
             }
             close(sock);
-
-            size_t bodyStart = response.find("\r\n\r\n");
-            if (bodyStart == std::string::npos) {
-                return "";
-            }
-            return response.substr(bodyStart + 4);
+            return response;
         }
 
         // server may not have started listening yet
@@ -285,6 +283,15 @@ std::string httpGetBody(int port, std::string path) {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     return "";
+}
+
+std::string httpGetBody(int port, std::string path) {
+    std::string response = httpGet(port, path);
+    size_t bodyStart = response.find("\r\n\r\n");
+    if (bodyStart == std::string::npos) {
+        return "";
+    }
+    return response.substr(bodyStart + 4);
 }
 
 void testWebServerServesSimulationState() {
@@ -356,7 +363,51 @@ void testWebServerIndexHasShareMetadata() {
     assert(body.find("<meta property=\"og:type\" content=\"website\">") != std::string::npos);
     assert(body.find("<meta property=\"og:url\" content=\"https://microbiome.preponderous.org/\">") != std::string::npos);
     assert(body.find("<link rel=\"canonical\" href=\"https://microbiome.preponderous.org/\">") != std::string::npos);
+    assert(body.find("<meta property=\"og:image\" content=\"https://microbiome.preponderous.org/og.png\">") != std::string::npos);
+    assert(body.find("<meta property=\"og:image:type\" content=\"image/png\">") != std::string::npos);
+    assert(body.find("<meta property=\"og:image:width\" content=\"1200\">") != std::string::npos);
+    assert(body.find("<meta property=\"og:image:height\" content=\"630\">") != std::string::npos);
+    assert(body.find("<meta property=\"og:image:alt\" content=\"Microbiome: ") != std::string::npos);
+    assert(body.find("<meta name=\"twitter:card\" content=\"summary_large_image\">") != std::string::npos);
+    assert(body.find("<meta name=\"twitter:image\" content=\"https://microbiome.preponderous.org/og.png\">") != std::string::npos);
     assert(body.find("localhost") == std::string::npos);
+    std::cout << " --- " << "Success" << std::endl;
+}
+
+// og:image names /og.png, so the server must answer it with the PNG. The bytes
+// are compared with assets/og.png (the suite runs from the repository root), so
+// a redrawn image whose header/ogImage.h was not regenerated fails here.
+void testWebServerServesOgImage() {
+    AppConfig config;
+    config.setEnvironmentSize(3);
+    config.setEntityFactor(1);
+    config.setSimulationOutputEnabled(false);
+
+    int port = 18126;
+    WebServer server(&config, port);
+    std::thread serverThread(&WebServer::run, &server);
+
+    std::string response = httpGet(port, "/og.png");
+
+    server.stop();
+    serverThread.join();
+
+    std::cout << "Test - Web Server Serves Og Image";
+    std::ifstream file("assets/og.png", std::ios::binary);
+    assert(file.good());
+    std::string expected((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    size_t bodyStart = response.find("\r\n\r\n");
+    assert(bodyStart != std::string::npos);
+    std::string head = response.substr(0, bodyStart);
+    std::string body = response.substr(bodyStart + 4);
+    assert(head.find(" 200 ") != std::string::npos);
+    assert(head.find("Content-Type: image/png") != std::string::npos);
+    assert(body == expected);
+    // PNG signature, then IHDR: big-endian width and height at bytes 16 and 20.
+    assert(body.compare(0, 8, "\x89PNG\r\n\x1a\n") == 0);
+    const unsigned char* b = reinterpret_cast<const unsigned char*>(body.data());
+    assert(((b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19]) == 1200);
+    assert(((b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23]) == 630);
     std::cout << " --- " << "Success" << std::endl;
 }
 
@@ -394,5 +445,6 @@ int main() {
     testWebServerServesSimulationState();
     testWebServerIndexLinksToPortfolio();
     testWebServerIndexHasShareMetadata();
+    testWebServerServesOgImage();
     return 0;
 }

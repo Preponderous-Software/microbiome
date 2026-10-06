@@ -25,6 +25,7 @@ class WebServer {
         void stop();
         void writeStateResponse(_u_response* response);
         void writeIndexResponse(_u_response* response);
+        void writeOgImageResponse(_u_response* response);
     private:
         void runSimulationLoop();
 

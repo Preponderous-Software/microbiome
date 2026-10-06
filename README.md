@@ -66,8 +66,8 @@ rebuilds the affected binaries. `make tests` in particular used to consider a `t
 up to date whenever it was newer than `src/tests.cpp` alone, and could re-run a stale build
 after a change elsewhere.
 
-The two suites overlap, with one gap: the web server's HTTP tests (`GET /api/state` and the
-index page's footer link) currently live only in the legacy suite, because
+The two suites overlap, with one gap: the web server's HTTP tests (`GET /api/state`, the
+index page's footer link and share tags, and `GET /og.png`) currently live only in the legacy suite, because
 `make catch2_tests` deliberately links no Ulfius dependency. Run `./run_tests.sh` to cover both.
 
 ### Catch2 Features
@@ -106,6 +106,8 @@ Building locally (in addition to `make` and `g++`, this needs `libulfius-dev` an
 3. Open http://localhost:8080 in a browser
 
 The page polls `GET /api/state` a few times a second for the current grid, microorganisms, and biomatter as JSON, and once the population goes extinct the server starts a new generation automatically.
+
+The page carries a description, a canonical link and Open Graph / Twitter card tags for https://microbiome.preponderous.org. Its link-preview image (`og:image`) is `assets/og.png`, a 1200×630 card served at `GET /og.png`. The PNG is compiled into the server as `src/header/ogImage.h`, so the binary needs no files beside it. After redrawing the PNG, run `make og-image-header` (needs `xxd`) and commit both. The legacy suite fails if they differ.
 
 ## Notable Classes
 
