@@ -1,4 +1,5 @@
 #include "header/webServer.h"
+#include "header/ogImage.h"
 
 #include <chrono>
 #include <iostream>
@@ -22,9 +23,16 @@ namespace {
 <meta property="og:title" content="Microbiome">
 <meta property="og:description" content="A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
 <meta property="og:url" content="https://microbiome.preponderous.org/">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="https://microbiome.preponderous.org/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Microbiome: A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Microbiome">
 <meta name="twitter:description" content="A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
+<meta name="twitter:image" content="https://microbiome.preponderous.org/og.png">
+<meta name="twitter:image:alt" content="Microbiome: A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
 <style>
   :root {
     color-scheme: dark;
@@ -161,6 +169,11 @@ namespace {
         return U_CALLBACK_CONTINUE;
     }
 
+    int handleOgImageRequest(const struct _u_request*, struct _u_response* response, void* userData) {
+        static_cast<WebServer*>(userData)->writeOgImageResponse(response);
+        return U_CALLBACK_CONTINUE;
+    }
+
     int handleStateRequest(const struct _u_request*, struct _u_response* response, void* userData) {
         static_cast<WebServer*>(userData)->writeStateResponse(response);
         return U_CALLBACK_CONTINUE;
@@ -192,6 +205,7 @@ void WebServer::run() {
 
     ulfius_add_endpoint_by_val(instance, "GET", "/", NULL, 0, &handleIndexRequest, this);
     ulfius_add_endpoint_by_val(instance, "GET", "/api/state", NULL, 0, &handleStateRequest, this);
+    ulfius_add_endpoint_by_val(instance, "GET", "/og.png", NULL, 0, &handleOgImageRequest, this);
 
     keepRunning = true;
     simulationThread = std::thread(&WebServer::runSimulationLoop, this);
@@ -276,4 +290,12 @@ void WebServer::writeStateResponse(_u_response* response) {
 void WebServer::writeIndexResponse(_u_response* response) {
     u_map_put(response->map_header, "Content-Type", "text/html; charset=utf-8");
     ulfius_set_string_body_response(response, 200, INDEX_HTML);
+}
+
+// The link-preview card named by og:image in INDEX_HTML: assets/og.png,
+// compiled in (header/ogImage.h) so the server needs no files beside it.
+void WebServer::writeOgImageResponse(_u_response* response) {
+    u_map_put(response->map_header, "Content-Type", "image/png");
+    u_map_put(response->map_header, "Cache-Control", "public, max-age=86400");
+    ulfius_set_binary_body_response(response, 200, reinterpret_cast<const char*>(og_png), og_png_len);
 }

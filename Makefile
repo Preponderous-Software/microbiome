@@ -22,7 +22,7 @@ ULFIUS_FLAGS = $(shell pkg-config --cflags --libs libulfius jansson)
 # it was newer than src/tests.cpp alone, and re-run a stale binary after a change
 # to any other translation unit. `test` needs .PHONY for a second reason: a
 # directory named test/ exists, so make would otherwise treat it as a file target.
-.PHONY: all mbapp catch2_tests test webapp web clean
+.PHONY: all mbapp catch2_tests test webapp web clean og-image-header
 
 all: mbapp tests catch2_tests webapp
 
@@ -54,6 +54,15 @@ mb_webapp: $(WEBAPP_FILE) $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(HEA
 # part of `all`. See web/build.sh and the README's "Play in your browser".
 web:
 	web/build.sh
+
+# The viewer's link-preview card is compiled into the web server, so the
+# binary needs no files beside it. After redrawing assets/og.png, run this and
+# commit both; the legacy suite (./tests) fails if they differ.
+og-image-header: assets/og.png
+	( echo '// Generated from assets/og.png by `make og-image-header`; do not edit.'; \
+	  echo '#ifndef OgImage_h'; echo '#define OgImage_h'; \
+	  cd assets && xxd -i og.png | sed 's/^unsigned/static const unsigned/'; \
+	  echo '#endif' ) > src/header/ogImage.h
 
 clean:
 	rm -f mb_app tests mb_tests mb_webapp
