@@ -141,7 +141,7 @@ The first run prints one line saying so on stderr and writes a small settings fi
 
 The installation ID is a random UUID, made the first time reporting is on and kept in `trace-install-id` in `$XDG_DATA_HOME/microbiome/` (by default `~/.local/share/microbiome/`; `~/Library/Application Support/microbiome/` on macOS, `%APPDATA%\microbiome\` on Windows). It is not derived from anything about you or your machine; it only lets trace count installations rather than launches. Delete the file to reset it. Setting `TRACE_INSTALL_ID` sends that value instead, and the file is left alone. Every opt-out above also stops the ID: with reporting off, the file is never created, read or sent.
 
-The event is sent in the background by the vendored [trace-client-cpp](https://github.com/Stephenson-Software/trace-client-cpp) header (`src/header/trace_client.hpp`) through the system `curl`; if curl is missing or the machine is offline, nothing is sent and the simulation is unaffected. `MICROBIOME_USAGE_REPORTING_ENDPOINT` points it at another server, e.g. a local one while testing. Details: https://github.com/Stephenson-Software/trace#usage-reporting
+The event is sent in the background by the vendored [trace-client-cpp](https://github.com/Stephenson-Software/trace-client-cpp) header (`src/header/trace_client.hpp`) through the system `curl`; if curl is missing or the machine is offline, nothing is sent and the simulation is unaffected. `MICROBIOME_USAGE_REPORTING_ENDPOINT` points it at another server, e.g. a local one while testing. Details: https://danielstephenson.dev/usage-reporting
 
 ## 📄 License
 

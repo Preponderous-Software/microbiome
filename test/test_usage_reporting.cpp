@@ -62,7 +62,7 @@ TEST_CASE("First run prints the notice once and leaves a settings file", "[usage
     }
     REQUIRE(first.str().find("Usage reporting is on: microbiome") != std::string::npos);
     REQUIRE(first.str().find("TRACE_USAGE_REPORTING=off") != std::string::npos);
-    REQUIRE(first.str().find("https://github.com/Stephenson-Software/trace#usage-reporting") != std::string::npos);
+    REQUIRE(first.str().find("https://danielstephenson.dev/usage-reporting") != std::string::npos);
     REQUIRE(first.str().find(sandbox.settings()) != std::string::npos);
     REQUIRE(exists(sandbox.settings()));
     {
