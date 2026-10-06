@@ -334,6 +334,32 @@ void testWebServerIndexLinksToPortfolio() {
     std::cout << " --- " << "Success" << std::endl;
 }
 
+void testWebServerIndexHasShareMetadata() {
+    AppConfig config;
+    config.setEnvironmentSize(3);
+    config.setEntityFactor(1);
+    config.setSimulationOutputEnabled(false);
+
+    int port = 18125;
+    WebServer server(&config, port);
+    std::thread serverThread(&WebServer::run, &server);
+
+    std::string body = httpGetBody(port, "/");
+
+    server.stop();
+    serverThread.join();
+
+    std::cout << "Test - Web Server Index Has Share Metadata";
+    assert(body.find("<meta name=\"description\" content=\"") != std::string::npos);
+    assert(body.find("<meta property=\"og:title\" content=\"Microbiome\">") != std::string::npos);
+    assert(body.find("<meta property=\"og:description\" content=\"") != std::string::npos);
+    assert(body.find("<meta property=\"og:type\" content=\"website\">") != std::string::npos);
+    assert(body.find("<meta property=\"og:url\" content=\"https://microbiome.preponderous.org/\">") != std::string::npos);
+    assert(body.find("<link rel=\"canonical\" href=\"https://microbiome.preponderous.org/\">") != std::string::npos);
+    assert(body.find("localhost") == std::string::npos);
+    std::cout << " --- " << "Success" << std::endl;
+}
+
 void seedRandomNumberGenerator() {
     srand (time (NULL));
 }
@@ -367,5 +393,6 @@ int main() {
     // run web server tests
     testWebServerServesSimulationState();
     testWebServerIndexLinksToPortfolio();
+    testWebServerIndexHasShareMetadata();
     return 0;
 }

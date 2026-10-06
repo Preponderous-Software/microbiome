@@ -15,6 +15,16 @@ namespace {
 <head>
 <meta charset="utf-8">
 <title>Microbiome</title>
+<meta name="description" content="A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
+<link rel="canonical" href="https://microbiome.preponderous.org/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Microbiome">
+<meta property="og:title" content="Microbiome">
+<meta property="og:description" content="A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
+<meta property="og:url" content="https://microbiome.preponderous.org/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Microbiome">
+<meta name="twitter:description" content="A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
 <style>
   :root {
     color-scheme: dark;
