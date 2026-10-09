@@ -10,6 +10,7 @@
 #include "../src/header/logger.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -305,6 +306,85 @@ TEST_CASE("Microorganisms forage biomatter at their location", "[microbiome][bio
         REQUIRE(forager->getEnergy() == 497);
         REQUIRE(forager->getTimesEaten() == 1);
     }
+}
+
+// Movement Tests
+// Energies stay well below the reproduction threshold and above any metabolic cost, so no
+// organism divides or dies and the only change to the grid is each one taking a single step.
+TEST_CASE("Each living microorganism steps to an orthogonally adjacent location every tick", "[microbiome][movement]") {
+    int id = 0;
+    int size = 5;
+    int entityFactor = 1;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
+
+    std::vector<Microorganism*> microorganisms = microbiome.getMicroorganisms();
+    REQUIRE(microorganisms.size() == 5);
+    for (Microorganism* microorganism : microorganisms) {
+        microorganism->setMetabolicRate(1);
+        microorganism->setEnergy(500);
+    }
+
+    for (int tick = 1; tick <= 3; tick++) {
+        std::vector<std::pair<int, int>> before;
+        for (Microorganism* microorganism : microorganisms) {
+            Location& location = microbiome.getGrid()->getLocation(microorganism->getLocationId());
+            before.push_back({location.getX(), location.getY()});
+        }
+
+        microbiome.initiateMicroorganismMovement();
+
+        REQUIRE(microbiome.getMicroorganisms().size() == 5);
+        for (size_t i = 0; i < microorganisms.size(); i++) {
+            Location& location = microbiome.getGrid()->getLocation(microorganisms[i]->getLocationId());
+            int distance = std::abs(location.getX() - before[i].first) + std::abs(location.getY() - before[i].second);
+            REQUIRE(distance == 1);
+            REQUIRE(microorganisms[i]->getTimesMoved() == tick);
+        }
+    }
+}
+
+// On a 2x2 grid every location has exactly two neighbors, so a microorganism placed next to the
+// biomatter has a 1 in 2 chance of stepping onto it under a uniform random walk. With chemotaxis
+// it heads for the biomatter 80% of the time and picks uniformly otherwise, landing on it ~90% of
+// the time; the threshold below sits far from both, so it separates them for any seed.
+TEST_CASE("Chemotaxis biases movement toward adjacent biomatter", "[microbiome][movement][biomatter]") {
+    int id = 0;
+    int size = 2;
+    int entityFactor = 1;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
+
+    std::vector<Microorganism*> microorganisms = microbiome.getMicroorganisms();
+    REQUIRE(microorganisms.size() == 2);
+    Microorganism* dying = microorganisms[0];
+    Microorganism* mover = microorganisms[1];
+    dying->setMetabolicRate(1);
+    dying->setEnergy(1);
+    mover->setMetabolicRate(1);
+    mover->setEnergy(500);
+
+    microbiome.initiateMicroorganismMovement();
+    REQUIRE(microbiome.getBiomatter().size() == 1);
+    Biomatter* biomatter = microbiome.getBiomatter()[0];
+    Location& biomatterLocation = microbiome.getGrid()->getLocation(biomatter->getLocationId());
+    Location& start = microbiome.getGrid()->getLocationByCoordinates(1 - biomatterLocation.getX(), biomatterLocation.getY());
+
+    int trials = 400;
+    int stepsOntoBiomatter = 0;
+    for (int trial = 0; trial < trials; trial++) {
+        microbiome.moveEntityToNewLocation(mover->getId(), start.getId());
+        mover->setEnergy(500);
+        biomatter->setEnergy(60);
+
+        microbiome.initiateMicroorganismMovement();
+
+        if (mover->getLocationId() == biomatterLocation.getId()) {
+            stepsOntoBiomatter++;
+        }
+    }
+
+    REQUIRE(stepsOntoBiomatter * 4 > trials * 3);
 }
 
 TEST_CASE("Microbiome total energy is clamped at zero", "[microbiome]") {
