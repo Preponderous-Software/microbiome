@@ -76,6 +76,49 @@ TEST_CASE("Microorganism times eaten counter", "[microorganism]") {
     REQUIRE(microorganism.getTimesEaten() == 2);
 }
 
+TEST_CASE("Microorganism is dead once its energy reaches zero", "[microorganism]") {
+    Microorganism microorganism(0, "Test Microorganism");
+
+    microorganism.setEnergy(1);
+    REQUIRE(microorganism.isDead() == false);
+
+    microorganism.setEnergy(0);
+    REQUIRE(microorganism.isDead() == true);
+
+    microorganism.setEnergy(-3);
+    REQUIRE(microorganism.isDead() == true);
+}
+
+TEST_CASE("Metabolizing past the last unit of energy kills a microorganism", "[microorganism]") {
+    Microorganism microorganism(0, "Test Microorganism");
+    microorganism.setEnergy(5);
+    microorganism.setMetabolicRate(3);
+
+    REQUIRE(microorganism.getMetabolicRate() == 3);
+
+    microorganism.metabolize();
+    REQUIRE(microorganism.getEnergy() == 2);
+    REQUIRE(microorganism.isDead() == false);
+
+    // energy is not clamped, so it overshoots below zero rather than stopping at it.
+    microorganism.metabolize();
+    REQUIRE(microorganism.getEnergy() == -1);
+    REQUIRE(microorganism.isDead() == true);
+}
+
+TEST_CASE("A new microorganism starts alive with energy and metabolic rate in range", "[microorganism]") {
+    // both are drawn from rand() at construction, so check the bounds over many draws.
+    for (int i = 0; i < 200; i++) {
+        Microorganism microorganism(i, "Test Microorganism");
+
+        REQUIRE(microorganism.getEnergy() >= 101);
+        REQUIRE(microorganism.getEnergy() <= 1000);
+        REQUIRE(microorganism.getMetabolicRate() >= 1);
+        REQUIRE(microorganism.getMetabolicRate() <= 4);
+        REQUIRE(microorganism.isDead() == false);
+    }
+}
+
 // MicroorganismFactory Tests
 TEST_CASE("MicroorganismFactory creates microorganisms with incremented IDs", "[factory]") {
     MicroorganismFactory factory;
