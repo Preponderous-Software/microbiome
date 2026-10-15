@@ -669,11 +669,13 @@ TEST_CASE("Simulation running stats report the microbiome and tick progress", "[
     }
 
     SECTION("counts reflect a living population") {
-        AppConfig config = emptyEnvironmentConfig(100);
+        AppConfig config;
         config.setEnvironmentSize(3);
         config.setEntityFactor(1);
+        config.setMaxTicks(100);
         Simulation simulation(&config, 0, "Test Simulation");
 
+        // energies are drawn from rand(), so the expected total comes from the getter.
         std::ostringstream expected;
         expected << "Name: Test Simulation\n"
                  << "Size: 3x3\n"
