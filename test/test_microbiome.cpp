@@ -592,6 +592,122 @@ TEST_CASE("Simulation runs and produces consistent results", "[simulation]") {
     }
 }
 
+// An entity factor of 0 leaves the grid empty, so the population is extinct from the start and
+// every count and energy total below is fully determined.
+namespace {
+
+AppConfig emptyEnvironmentConfig(int maxTicks) {
+    AppConfig config;
+    config.setEnvironmentSize(4);
+    config.setEntityFactor(0);
+    config.setMaxTicks(maxTicks);
+    config.setTickLengthInSeconds(0);
+    config.setSimulationOutputEnabled(false);
+    return config;
+}
+
+std::string captureRunningStats(Simulation& simulation) {
+    std::ostringstream captured;
+    std::streambuf* original = std::cout.rdbuf(captured.rdbuf());
+    simulation.printRunningStats();
+    std::cout.rdbuf(original);
+    return captured.str();
+}
+
+}
+
+TEST_CASE("Simulation stops once every microorganism is dead", "[simulation]") {
+    SECTION("before reaching the configured maximum") {
+        AppConfig config = emptyEnvironmentConfig(100);
+        Simulation simulation(&config, 0, "Test Simulation");
+
+        simulation.run();
+
+        // the extinction check runs after the tick is counted, so one tick still elapses
+        REQUIRE(simulation.getTicksElapsed() == 1);
+        REQUIRE(simulation.getSurvivingMicroorganisms() == 0);
+    }
+
+    SECTION("when no maximum is configured") {
+        AppConfig config = emptyEnvironmentConfig(0);
+        Simulation simulation(&config, 0, "Test Simulation");
+
+        simulation.run();
+
+        REQUIRE(simulation.getTicksElapsed() == 1);
+    }
+}
+
+TEST_CASE("Simulation running stats report the microbiome and tick progress", "[simulation]") {
+    SECTION("ticks are shown against the maximum when one is configured") {
+        AppConfig config = emptyEnvironmentConfig(100);
+        Simulation simulation(&config, 0, "Test Simulation");
+
+        REQUIRE(captureRunningStats(simulation) ==
+                "Name: Test Simulation\n"
+                "Size: 4x4\n"
+                "Microorganisms: 0\n"
+                "Dead Microorganisms: 0\n"
+                "Total Energy: 0\n"
+                "\n"
+                "Ticks elapsed: 0 of 100\n");
+    }
+
+    SECTION("ticks are shown alone when no maximum is configured") {
+        AppConfig config = emptyEnvironmentConfig(0);
+        Simulation simulation(&config, 0, "Test Simulation");
+        simulation.run();
+
+        REQUIRE(captureRunningStats(simulation) ==
+                "Name: Test Simulation\n"
+                "Size: 4x4\n"
+                "Microorganisms: 0\n"
+                "Dead Microorganisms: 0\n"
+                "Total Energy: 0\n"
+                "\n"
+                "Ticks elapsed: 1\n");
+    }
+
+    SECTION("counts reflect a living population") {
+        AppConfig config;
+        config.setEnvironmentSize(3);
+        config.setEntityFactor(1);
+        config.setMaxTicks(100);
+        Simulation simulation(&config, 0, "Test Simulation");
+
+        // energies are drawn from rand(), so the expected total comes from the getter.
+        std::ostringstream expected;
+        expected << "Name: Test Simulation\n"
+                 << "Size: 3x3\n"
+                 << "Microorganisms: 3\n"
+                 << "Dead Microorganisms: 0\n"
+                 << "Total Energy: " << simulation.getEnergy() << "\n"
+                 << "\n"
+                 << "Ticks elapsed: 0 of 100\n";
+        REQUIRE(captureRunningStats(simulation) == expected.str());
+    }
+}
+
+TEST_CASE("Simulation finished stats report the grid's location count", "[simulation]") {
+    AppConfig config = emptyEnvironmentConfig(100);
+    Simulation simulation(&config, 0, "Test Simulation");
+    simulation.run();
+
+    std::ostringstream captured;
+    std::streambuf* original = std::cout.rdbuf(captured.rdbuf());
+    simulation.printFinishedStats();
+    std::cout.rdbuf(original);
+
+    REQUIRE(captured.str() ==
+            "\n"
+            "=== Simulation Complete ===\n"
+            "Locations: 16\n"
+            "Surviving Microorganisms: 0\n"
+            "Dead Microorganisms: 0\n"
+            "Total Energy: 0\n"
+            "Ticks elapsed: 1\n");
+}
+
 // Logger Tests
 // Each test logs to its own temporary file, so nothing here touches the log.*.txt files
 // the simulation itself writes to the working directory.
