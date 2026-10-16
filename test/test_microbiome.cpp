@@ -191,7 +191,7 @@ TEST_CASE("Microbiome entity tracking and lifecycle", "[microbiome]") {
 
 // addMicroorganism() tracks a microorganism without placing it on the grid, which is exactly the
 // state purgeMicroorganismsNotInEnvironment() exists to clean up. The stray's id (999) is far past
-// the ids the constructor hands out (0-8), so it can't collide with one already on the grid.
+// the ids the constructor hands out (0-2), so it can't collide with one already on the grid.
 TEST_CASE("Purging drops tracked microorganisms that are not on the grid", "[microbiome]") {
     int id = 0;
     int size = 3;
