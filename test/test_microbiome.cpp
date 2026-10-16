@@ -178,6 +178,64 @@ TEST_CASE("Microbiome entity tracking and lifecycle", "[microbiome]") {
         }
         REQUIRE(microorganismFound == false);
     }
+
+    SECTION("removing an unknown id leaves the population unchanged") {
+        size_t populationBefore = microbiome.getMicroorganisms().size();
+
+        microbiome.removeMicroorganism(999);
+
+        REQUIRE(microbiome.getMicroorganisms().size() == populationBefore);
+        REQUIRE(microbiome.getNumEntities() == (int) populationBefore);
+    }
+}
+
+// addMicroorganism() tracks a microorganism without placing it on the grid, which is exactly the
+// state purgeMicroorganismsNotInEnvironment() exists to clean up. The stray's id (999) is far past
+// the ids the constructor hands out (0-8), so it can't collide with one already on the grid.
+TEST_CASE("Purging drops tracked microorganisms that are not on the grid", "[microbiome]") {
+    int id = 0;
+    int size = 3;
+    int entityFactor = 1;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
+    size_t populationOnGrid = microbiome.getMicroorganisms().size();
+
+    microbiome.addMicroorganism(Microorganism(999, "stray"));
+    REQUIRE(microbiome.isMicroorganismPresent(999) == true);
+    REQUIRE(microbiome.getMicroorganisms().size() == populationOnGrid + 1);
+    REQUIRE(microbiome.getNumEntities() == (int) populationOnGrid);
+
+    microbiome.purgeMicroorganismsNotInEnvironment();
+
+    REQUIRE(microbiome.isMicroorganismPresent(999) == false);
+    REQUIRE(microbiome.getMicroorganisms().size() == populationOnGrid);
+    for (int microorganismId = 0; microorganismId < (int) populationOnGrid; microorganismId++) {
+        REQUIRE(microbiome.isMicroorganismPresent(microorganismId) == true);
+    }
+}
+
+// The living count reads each tracked microorganism's energy, while the dead count only tallies
+// deaths processed during a tick, so a tracked microorganism that has no energy left counts as
+// neither.
+TEST_CASE("Living count excludes tracked microorganisms with no energy left", "[microbiome]") {
+    int id = 0;
+    int size = 2;
+    int entityFactor = 1;
+    std::string name = "Test Microbiome";
+    Microbiome microbiome(id, name, size, entityFactor);
+    REQUIRE(microbiome.getNumAliveMicroorganisms() == 2);
+
+    Microorganism exhausted(998, "exhausted");
+    exhausted.setEnergy(0);
+    microbiome.addMicroorganism(exhausted);
+
+    Microorganism healthy(999, "healthy");
+    healthy.setEnergy(5);
+    microbiome.addMicroorganism(healthy);
+
+    REQUIRE(microbiome.getMicroorganisms().size() == 4);
+    REQUIRE(microbiome.getNumAliveMicroorganisms() == 3);
+    REQUIRE(microbiome.getNumDeadMicroorganisms() == 0);
 }
 
 TEST_CASE("Microorganism reproduction increases the population", "[microbiome]") {
