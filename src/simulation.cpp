@@ -22,6 +22,9 @@ Simulation::~Simulation() {
 
 void Simulation::run() {
     logger->log("Simulation " + std::to_string(microbiome->getId()) + " started.");
+    if (recording != nullptr) {
+        recording->recordTick(*microbiome, numTicks);
+    }
     while (running) {
         microbiome->initiateMicroorganismMovement();
 
@@ -33,6 +36,9 @@ void Simulation::run() {
 
 
         numTicks++;
+        if (recording != nullptr) {
+            recording->recordTick(*microbiome, numTicks);
+        }
         if (config->getMaxTicks() > 0 && numTicks >= config->getMaxTicks()) {
             logger->log("Max ticks reached. Stopping simulation.");
             running = false;
@@ -47,6 +53,10 @@ void Simulation::run() {
             running = false;
         }
     }
+}
+
+void Simulation::setRecording(UsdRecording* recording) {
+    this->recording = recording;
 }
 
 void Simulation::printRunningStats() {

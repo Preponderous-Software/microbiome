@@ -1,6 +1,9 @@
 #include "header/mbapp.h"
 #include "header/result.h"
 #include "header/usageReporting.h"
+#include "header/usdRecording.h"
+
+#include <cstring>
 
 MicrobiomeApplication::MicrobiomeApplication() {
     config = AppConfig();
@@ -11,7 +14,18 @@ bool MicrobiomeApplication::run() {
     for (size_t i = 0; i < config.getNumSimulations(); i++) {
         std::cout << "Running simulation " << i + 1 << " of " << config.getNumSimulations() << std::endl;
         simulation = new Simulation(&config, i + 1, "Simulation " + std::to_string(i + 1));
+        // --record captures the first simulation only, so one file holds one history.
+        UsdRecording* recording = nullptr;
+        if (i == 0 && !recordPath.empty()) {
+            recording = new UsdRecording();
+            simulation->setRecording(recording);
+        }
         simulation->run();
+        if (recording != nullptr) {
+            recording->write(recordPath);
+            std::cout << "Recorded " << recording->getTicksRecorded() << " ticks of simulation 1 to " << recordPath << std::endl;
+            delete recording;
+        }
         Result result = Result(simulation);
         results.push_back(result);
         delete simulation;
@@ -29,6 +43,10 @@ bool MicrobiomeApplication::run() {
     }
     
     return 0;
+}
+
+void MicrobiomeApplication::setRecordPath(std::string recordPath) {
+    this->recordPath = recordPath;
 }
 
 void MicrobiomeApplication::printResults() {
@@ -62,7 +80,19 @@ void MicrobiomeApplication::printResultAverages() {
 
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    // The only option is --record <path>; with no arguments the app runs exactly as before.
+    std::string recordPath;
+    for (int i = 1; i < argc; i++) {
+        if (std::strcmp(argv[i], "--record") == 0 && i + 1 < argc) {
+            recordPath = argv[++i];
+        }
+        else {
+            std::cerr << "usage: " << argv[0] << " [--record <path.usda>]" << std::endl;
+            return 2;
+        }
+    }
+
     // One startup event to trace, sent in the background; see
     // header/usageReporting.h and the README's "Usage reporting" section.
     // The destructor gives it a moment to leave when the program ends.
@@ -70,6 +100,7 @@ int main() {
     usageReporting.reportStartup();
 
     MicrobiomeApplication microbiomeApplication;
+    microbiomeApplication.setRecordPath(recordPath);
     microbiomeApplication.run();
     return 0;
 }
