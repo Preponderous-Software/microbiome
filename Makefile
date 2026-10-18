@@ -1,17 +1,20 @@
 MAIN_FILE = src/mbapp.cpp
 TESTS_FILE = src/tests.cpp
-CATCH2_TEST_FILE = test/test_microbiome.cpp test/test_usage_reporting.cpp
+CATCH2_TEST_FILE = test/test_microbiome.cpp test/test_usage_reporting.cpp test/test_usd_recording.cpp
 WEBAPP_FILE = src/webapp.cpp
-PROJECT_FILES = src/microorganism.cpp src/microbiome.cpp src/appConfig.cpp src/simulation.cpp src/result.cpp src/logger.cpp src/microorganismFactory.cpp src/biomatter.cpp
+PROJECT_FILES = src/microorganism.cpp src/microbiome.cpp src/appConfig.cpp src/simulation.cpp src/result.cpp src/logger.cpp src/microorganismFactory.cpp src/biomatter.cpp src/usdRecording.cpp
 WEB_FILES = src/webServer.cpp
 ENVLIBCPP_FILES = env-lib-cpp/src/entity.cpp env-lib-cpp/src/environment.cpp env-lib-cpp/src/grid.cpp env-lib-cpp/src/location.cpp
 
-PROJECT_HEADERS = $(wildcard src/header/*.h) $(wildcard src/header/*.hpp)
+PROJECT_HEADERS = $(wildcard src/header/*.h) $(wildcard src/header/*.hpp) $(wildcard src/header/vendor/*/*.hpp)
 ENVLIBCPP_HEADERS = $(wildcard env-lib-cpp/src/header/*.h)
 CATCH2_HEADERS = $(wildcard test/lib/*.hpp)
 HEADERS = $(PROJECT_HEADERS) $(ENVLIBCPP_HEADERS)
 
 WARNING_FLAGS = -pedantic -Wall
+# C++17 for the vendored usd-recorder writer (std::variant/std::optional); the
+# browser build (web/build.sh) already compiles as C++17.
+STD_FLAGS = -std=c++17
 # The console app reports its version with its startup event (usageReporting.h).
 VERSION_FLAGS = -DMICROBIOME_VERSION='"$(shell cat version.txt)"'
 ULFIUS_FLAGS = $(shell pkg-config --cflags --libs libulfius jansson)
@@ -31,7 +34,7 @@ mbapp: mb_app
 # Legacy tests (for backward compatibility)
 # The alias and the binary share a name here, so this rule is not phony.
 tests: $(TESTS_FILE) $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(HEADERS)
-	g++ $(WARNING_FLAGS) -pthread $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(TESTS_FILE) $(ULFIUS_FLAGS) -o tests
+	g++ $(STD_FLAGS) $(WARNING_FLAGS) -pthread $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(TESTS_FILE) $(ULFIUS_FLAGS) -o tests
 
 # Catch2 tests (new)
 catch2_tests: mb_tests
@@ -42,13 +45,13 @@ test: mb_tests
 webapp: mb_webapp
 
 mb_app: $(MAIN_FILE) $(PROJECT_FILES) $(ENVLIBCPP_FILES) $(HEADERS) version.txt
-	g++ $(WARNING_FLAGS) $(VERSION_FLAGS) -pthread $(MAIN_FILE) $(PROJECT_FILES) $(ENVLIBCPP_FILES)  -o mb_app
+	g++ $(STD_FLAGS) $(WARNING_FLAGS) $(VERSION_FLAGS) -pthread $(MAIN_FILE) $(PROJECT_FILES) $(ENVLIBCPP_FILES)  -o mb_app
 
 mb_tests: $(CATCH2_TEST_FILE) $(PROJECT_FILES) $(ENVLIBCPP_FILES) $(HEADERS) $(CATCH2_HEADERS)
-	g++ $(WARNING_FLAGS) -pthread -I test $(PROJECT_FILES) $(ENVLIBCPP_FILES) $(CATCH2_TEST_FILE) -o mb_tests
+	g++ $(STD_FLAGS) $(WARNING_FLAGS) -pthread -I test $(PROJECT_FILES) $(ENVLIBCPP_FILES) $(CATCH2_TEST_FILE) -o mb_tests
 
 mb_webapp: $(WEBAPP_FILE) $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(HEADERS)
-	g++ $(WARNING_FLAGS) -pthread $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(WEBAPP_FILE) $(ULFIUS_FLAGS) -o mb_webapp
+	g++ $(STD_FLAGS) $(WARNING_FLAGS) -pthread $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(WEBAPP_FILE) $(ULFIUS_FLAGS) -o mb_webapp
 
 # Browser (Emscripten) build into web/build/; needs em++ on PATH, so it is not
 # part of `all`. See web/build.sh and the README's "Play in your browser".

@@ -4,6 +4,7 @@
 #include "microbiome.h"
 #include "appConfig.h"
 #include "logger.h"
+#include "usdRecording.h"
 
 /**
  * The Simulation class represents a simulation of a Microbiome.
@@ -21,12 +22,14 @@ class Simulation {
         size_t getTicksElapsed();
         void printRunningStats();
         void printFinishedStats();
+        void setRecording(UsdRecording* recording);
     private:
         bool running = true;
         size_t numTicks = 0;
         Microbiome* microbiome;
         AppConfig* config;
         Logger* logger;
+        UsdRecording* recording = nullptr; // not owned; only set by --record
 };
 
 #endif
