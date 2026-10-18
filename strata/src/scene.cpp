@@ -11,12 +11,24 @@ namespace {
 
 constexpr float kPi = 3.14159265358979f;
 constexpr float kGrainHeight = 2.4f;
-const float kGrainRgb[3] = {0.30f, 0.25f, 0.19f};
-
-// Saturating map of a concentration onto [0, 1): v / (v + half).
-float saturate(float v, float half) { return v <= 0.0f ? 0.0f : v / (v + half); }
 
 }  // namespace
+
+float saturateConcentration(float v, float half) { return v <= 0.0f ? 0.0f : v / (v + half); }
+
+void fieldRgb(FieldView view, float tn, float tw, float to, float rgb[3]) {
+    switch (view) {
+        case FieldView::Nutrient: strata::sim::colormapRgb(strata::sim::Colormap::Viridis, tn, rgb); break;
+        case FieldView::Waste: strata::sim::colormapRgb(strata::sim::Colormap::Magma, tw, rgb); break;
+        case FieldView::Oxygen: strata::sim::colormapRgb(strata::sim::Colormap::Ice, to, rgb); break;
+        case FieldView::Composite:
+        default:
+            rgb[0] = 0.015f + 0.030f * to + 0.090f * tn + 0.420f * tw;
+            rgb[1] = 0.020f + 0.120f * to + 0.520f * tn + 0.060f * tw;
+            rgb[2] = 0.040f + 0.380f * to + 0.060f * tn + 0.300f * tw;
+            break;
+    }
+}
 
 const char* fieldViewName(FieldView view) {
     switch (view) {
@@ -81,22 +93,12 @@ const StrataTerrainTile& Scene::buildTerrain(const MicroEnvironment& env, FieldV
             rgb[2] = kGrainRgb[2];
             continue;
         }
-        const float tn = saturate(nut[i], 4.0f);
-        const float tw = saturate(waste[i], 3.0f);
+        const float tn = saturateConcentration(nut[i], kNutrientHalf);
+        const float tw = saturateConcentration(waste[i], kWasteHalf);
         const float to = std::min(oxy[i] / oxyScale, 1.0f);
         // A little relief where nutrient is rich, so the field reads as 2.5D.
         heights_[i] = 0.35f * tn;
-        switch (view) {
-            case FieldView::Nutrient: strata::sim::colormapRgb(strata::sim::Colormap::Viridis, tn, rgb); break;
-            case FieldView::Waste: strata::sim::colormapRgb(strata::sim::Colormap::Magma, tw, rgb); break;
-            case FieldView::Oxygen: strata::sim::colormapRgb(strata::sim::Colormap::Ice, to, rgb); break;
-            case FieldView::Composite:
-            default:
-                rgb[0] = 0.015f + 0.030f * to + 0.090f * tn + 0.420f * tw;
-                rgb[1] = 0.020f + 0.120f * to + 0.520f * tn + 0.060f * tw;
-                rgb[2] = 0.040f + 0.380f * to + 0.060f * tn + 0.300f * tw;
-                break;
-        }
+        fieldRgb(view, tn, tw, to, rgb);
     }
 
     tile_ = StrataTerrainTile{};

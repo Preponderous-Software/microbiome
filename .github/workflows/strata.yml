@@ -46,8 +46,14 @@ jobs:
       - name: Test (simulation + headless render smoke)
         run: ctest --test-dir build-strata --output-on-failure
 
-      - name: Headless screenshot
-        run: build-strata/mb_strata --headless --ticks 600 --screenshot mb-strata-600.png
+      - name: Headless screenshots (with and without the statistics overlay)
+        shell: bash
+        run: |
+          set -euo pipefail
+          build-strata/mb_strata --headless --ticks 600 --screenshot mb-strata-600.png | tee hud.log
+          build-strata/mb_strata --headless --ticks 600 --no-hud --screenshot mb-strata-600-no-hud.png | tee no-hud.log
+          # The HUD only reads the simulation: the state hash must not change.
+          test "$(grep '^state ' hud.log)" = "$(grep '^state ' no-hud.log)"
 
       - name: Bench (ticks per second, 128x128)
         run: build-strata/mb_strata --bench --ticks 2000

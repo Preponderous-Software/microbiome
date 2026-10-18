@@ -5,11 +5,11 @@
 This application allows the user to witness the activity of a virtual microbial community.
 
 <p align="center">
-  <img src="assets/strata/micro-environment.gif" width="460" alt="A 128 by 128 micro-environment seen from above at an angle: rock grains stand on a field that starts bright green with nutrient. Blue aerobes, orange fermenters and pink cross-feeders swim through it, eat the nutrient away and gather into glowing colonies around twelve nutrient seeps, while purple waste plumes spread around the colonies and a blue oxygen band stays near the top edge.">
+  <img src="assets/strata/micro-environment.gif" width="600" alt="A 128 by 128 micro-environment seen from above at an angle: rock grains stand on a field that starts bright green with nutrient. Blue aerobes, orange fermenters and pink cross-feeders swim through it, eat the nutrient away and gather into glowing colonies around twelve nutrient seeps, while purple waste plumes spread around the colonies and a blue oxygen band stays near the top edge. A text overlay in the top-left corner counts the tick, the population of each species and the chamber's nutrient, waste, oxygen and cell-energy totals with their change per tick; a legend in the bottom-left explains the field colours and a sparkline in the bottom-right plots each species' population over the last 960 ticks.">
   <br>
   <em>The opt-in Strata build (<code>mb_strata</code>): 960 ticks of a 128×128 chamber, simulated with Strata's
-  <code>strata::sim</code> and drawn by the Strata engine (headless, Mesa llvmpipe). Green is nutrient, purple
-  waste, blue oxygen; see <a href="#micro-environment-on-strata-opt-in">below</a>.</em>
+  <code>strata::sim</code> and drawn by the Strata engine (headless, Mesa llvmpipe), with the live statistics
+  overlay. Green is nutrient, purple waste, blue oxygen; see <a href="#micro-environment-on-strata-opt-in">below</a>.</em>
 </p>
 
 ## Play in your browser
@@ -48,6 +48,19 @@ opposing gradients, as in a Winogradsky column.
   <br><em>Zoomed in (<code>--zoom 2.2 --yaw 20</code>): colonies at nutrient seeps beside grains, lit by Strata's sun and point lights.</em>
 </p>
 
+<p align="center">
+  <img src="assets/strata/hud.png" width="640" alt="The chamber at tick 1200 in the nutrient view at 1280 by 800, with the statistics overlay: tick 1200, 40 simulated seconds, seed 1; population 1169 with 462 cells in biofilms (65 aerobes, 689 fermenters, 415 cross-feeders); births and deaths; nutrient, waste, oxygen and cell-energy totals with their change per tick; a viridis colour bar labelled 0, 4, 12 and 36; and a population sparkline.">
+  <br><em>The statistics overlay at 1280×800 (nutrient view, tick 1200). Tab hides it in the window; <code>--no-hud</code> turns it off.</em>
+</p>
+
+The overlay is drawn with Strata's unlit overlays (ABI 1.5): the text is Strata's 8×8 bitmap font, the
+panels, colour bar and sparkline are overlay lines, and the species markers are overlay points. It shows
+the tick and simulated time, the speed or pause state, each species' population and the biofilm count,
+births and deaths, the chamber's nutrient, waste, oxygen and cell-energy totals with their change per
+tick (next to the 1,800 units of nutrient the seeps add each tick), a legend for the current field view
+and the population of each species over the last 960 ticks. It only reads the simulation, so a run's
+state hash is the same with it on or off.
+
 It is deterministic: the simulation draws every random number from one seeded generator, runs on a fixed
 tick and never reads a clock, so a seed gives a bit-identical state hash after the same number of ticks.
 Measured with `mb_strata --bench` (simulation only, one thread, GCC 9.4 Release build on an i9-10850K):
@@ -68,8 +81,9 @@ build-strata/mb_strata --bench --ticks 2000   # ticks per second, no rendering
 ```
 
 In the window: WASD/arrows pan, Q/E rotate, mouse wheel or +/- zoom, drag to pan, 1–4 switch the field
-view, space pauses, `,`/`.` change speed, R starts a new seed. Options: `--seed`, `--size`,
-`--per-species`, `--view`, `--zoom`, `--yaw`, `--tps`.
+view, space pauses, `,`/`.` change speed, Tab shows or hides the statistics overlay, R starts a new seed.
+Options: `--seed`, `--size`, `--per-species`, `--view`, `--zoom`, `--yaw`, `--tps`, `--no-hud`,
+`--hud-scale N` (glyph size in multiples of 8 pixels; by default it follows the window height).
 
 This build is separate from everything else: `make`, `mb_app`, `mb_webapp` (microbiome.preponderous.org),
 the browser/arcade build and both test suites are unchanged and do not need CMake or Strata. The browser
@@ -121,7 +135,7 @@ The project now uses **Catch2** as the primary testing framework, providing bett
 - `make test` - Alias for `catch2_tests`
 - `./run_tests.sh` - Run both Catch2 and legacy tests
 - `make` - Builds both test binaries alongside the applications, so a test suite that stops compiling fails the build rather than going unnoticed
-- `ctest --test-dir build-strata` - after `make strata`: the opt-in Strata build's Catch2 tests (diffusion mass conservation, chemotaxis direction, same-seed determinism, the console app's fission/death rules) and a headless render smoke test; see [docs/STRATA.md](docs/STRATA.md)
+- `ctest --test-dir build-strata` - after `make strata`: the opt-in Strata build's Catch2 tests (diffusion mass conservation, chemotaxis direction, same-seed determinism, the console app's fission/death rules), headless render smoke tests and statistics-overlay tests; see [docs/STRATA.md](docs/STRATA.md)
 
 CI (`.github/workflows/docker-build.yml`) builds the production image and then executes both
 suites inside it, so a failing assertion fails the build too, not only a failing compile.
