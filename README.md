@@ -109,6 +109,33 @@ The page polls `GET /api/state` a few times a second for the current grid, micro
 
 The page carries a description, a canonical link and Open Graph / Twitter card tags for https://microbiome.preponderous.org. Its link-preview image (`og:image`) is `assets/og.png`, a 1200×630 card served at `GET /og.png`. The PNG is compiled into the server as `src/header/ogImage.h`, so the binary needs no files beside it. After redrawing the PNG, run `make og-image-header` (needs `xxd`) and commit both. The legacy suite fails if they differ.
 
+## Recording a replay
+`mb_app --record <path.usda>` records the first simulation's history as a time-sampled
+[OpenUSD](https://openusd.org) stage, one time code per tick (10 per second), that can be scrubbed in
+usdview, Blender or any USD tool:
+
+```sh
+make mbapp
+./mb_app --record run.usda
+```
+
+Every living microorganism and every piece of biomatter is an entity at its grid coordinates
+`(x, y, 0)` (`y` grows downwards, as in the console view), visible while it exists, with `kind`
+(`microorganism` or `biomatter`) and `energy` values; microorganisms also carry `metabolicRate`
+and `timesEaten`. The stage carries the `alive` and `dead` counts and the `totalEnergy` per tick.
+The other simulations run as before. Without `--record` nothing is recorded and the app behaves
+exactly as it always has.
+
+The recording is written by [usd-recorder](https://github.com/Preponderous-Software/usd-recorder)'s
+dependency-free C++ writer, vendored at v0.1.0 (MIT) in `src/header/vendor/usd_recorder/`, so no
+OpenUSD installation is needed to build or record. `src/header/usdRecording.h` maps the simulation
+onto it.
+
+![A recorded run replayed in Blender](assets/replay.gif)
+
+The replay above is a recorded run of 1,061 ticks (a 2.5 MB stage) rendered top-down with headless
+Blender's USD importer and Cycles, coloured by `kind`.
+
 ## Notable Classes
 
 ### Microbiome
