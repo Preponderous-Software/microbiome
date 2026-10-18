@@ -2,6 +2,7 @@
 //
 //   mb_strata [--seed N] [--size N | --width N --height N] [--per-species N]
 //             [--view composite|nutrient|waste|oxygen] [--zoom F] [--yaw DEG]
+//             [--no-hud] [--hud-scale N]
 //             [--headless --ticks N [--screenshot out.png] [--frames DIR --frame-every N]]
 //             [--bench --ticks N]
 //             [--window-width W --window-height H]
@@ -9,6 +10,9 @@
 // Without --headless or --bench it opens a window. The simulation runs on a
 // fixed tick (strata::sim::FixedStep); the window's clock only decides how
 // many ticks to run per frame, never what a tick does.
+//
+// The HUD (src/hud.*) draws live statistics with Strata's overlays; it only
+// reads the simulation. Tab toggles it in the window, --no-hud turns it off.
 //
 // mb_strata reports no usage and writes no log files.
 #include <algorithm>
@@ -22,6 +26,7 @@
 #include "strata/sim/fixed_step.hpp"
 #include "strata/strata.hpp"
 
+#include "../src/hud.h"
 #include "../src/micro_environment.h"
 #include "../src/scene.h"
 
@@ -33,7 +38,7 @@ namespace {
 enum : int32_t {
     kA = 4, kD = 7, kE = 8, kH = 11, kQ = 20, kR = 21, kS = 22, kW = 26,
     k1 = 30, k2 = 31, k3 = 32, k4 = 33,
-    kEscape = 41, kSpace = 44, kMinus = 45, kEquals = 46, kComma = 54, kPeriod = 55,
+    kEscape = 41, kTab = 43, kSpace = 44, kMinus = 45, kEquals = 46, kComma = 54, kPeriod = 55,
     kRight = 79, kLeft = 80, kDown = 81, kUp = 82, kKpMinus = 86, kKpPlus = 87
 };
 
@@ -51,12 +56,15 @@ struct Args {
     double ticksPerSecond = 30.0;
     float zoom = 1.0f;
     float yaw = 0.0f;
+    bool hud = true;
+    float hudScale = 0.0f;  // glyph cell in pixels; 0 picks one from the window height
 };
 
 void usage(const char* argv0) {
     std::fprintf(stderr,
                  "usage: %s [--seed N] [--size N | --width N --height N] [--per-species N]\n"
                  "          [--view composite|nutrient|waste|oxygen] [--tps N] [--zoom F] [--yaw DEG]\n"
+                 "          [--no-hud] [--hud-scale N]\n"
                  "          [--headless --ticks N [--screenshot out.png] [--frames DIR --frame-every N]]\n"
                  "          [--bench --ticks N] [--window-width W --window-height H]\n",
                  argv0);
@@ -94,6 +102,8 @@ bool parse(int argc, char** argv, Args& a) {
         else if (k == "--window-height") a.windowHeight = std::atoi(val().c_str());
         else if (k == "--zoom") a.zoom = std::max(0.1f, static_cast<float>(std::atof(val().c_str())));
         else if (k == "--yaw") a.yaw = static_cast<float>(std::atof(val().c_str()));
+        else if (k == "--no-hud") a.hud = false;
+        else if (k == "--hud-scale") a.hudScale = static_cast<float>(8 * std::max(1, std::min(8, std::atoi(val().c_str()))));
         else if (k == "--tps") a.ticksPerSecond = std::max(1.0, std::atof(val().c_str()));
         else if (k == "--view") {
             if (!parseView(val(), a.view)) return false;
@@ -127,7 +137,7 @@ void help() {
     std::printf(
         "controls: WASD/arrows pan, Q/E rotate, mouse wheel or +/- zoom, 1-4 field view\n"
         "          (composite, nutrient, waste, oxygen), space pause, ,/. slower/faster,\n"
-        "          R new seed, H help, Esc quit\n");
+        "          Tab statistics overlay, R new seed, H help, Esc quit\n");
 }
 
 }  // namespace
@@ -170,17 +180,30 @@ int main(int argc, char** argv) {
     engine->setLighting(light);
 
     int w = desc.width, h = desc.height;
+    engine->drawableSize(w, h);
     auto aspect = [&] { return static_cast<float>(w) / static_cast<float>(std::max(1, h)); };
     OrbitCamera camera = fitCamera(*env, aspect());
     camera.distance /= a.zoom;
     camera.yawDegrees = a.yaw;
     Scene scene;
     FieldView view = a.view;
+    Hud hud;
+    StatsHistory history;
+    HudState hudState;
+    hudState.ticksPerSecond = a.ticksPerSecond;
+    hudState.headless = a.headless;
+    bool showHud = a.hud;
+    history.observe(*env);
+    auto stepOnce = [&] {
+        env->step();
+        history.observe(*env);  // reads only; kept while the HUD is hidden
+    };
 
     auto draw = [&] {
         light.shadow_distance = camera.distance * 2.5f;
         engine->setLighting(light);
-        engine->setCamera(camera.toStrata(aspect()));
+        const StrataCamera cam = camera.toStrata(aspect());
+        engine->setCamera(cam);
         engine->setTerrain(&scene.buildTerrain(*env, view));
         const auto& lights = scene.buildSeepLights(*env);
         engine->setPointLights(lights.data(), lights.size());
@@ -193,6 +216,12 @@ int main(int argc, char** argv) {
         engine->beginFrame(fd);
         const auto& items = scene.buildItems(*env);
         engine->submitPrimitives(items.data(), items.size());
+        if (showHud) {
+            hudState.view = view;
+            hudState.seed = a.config.seed;
+            hud.build(*env, history, hudState, cam, w, h, a.hudScale);
+            hud.submit(*engine);
+        }
         engine->endFrame();
     };
 
@@ -206,7 +235,7 @@ int main(int argc, char** argv) {
         };
         for (long t = 0; t < a.ticks; ++t) {
             if (!a.framesDir.empty() && t % a.frameEvery == 0) shoot();
-            env->step();
+            stepOnce();
             if ((t + 1) % 200 == 0) std::printf("%s\n", env->summary().c_str());
         }
         if (!a.framesDir.empty()) shoot();
@@ -224,6 +253,9 @@ int main(int argc, char** argv) {
     float dragX = 0, dragY = 0;
     auto last = std::chrono::steady_clock::now();
     uint64_t lastReport = 0;
+    // Real ticks per second, for the HUD only: ticks run over about a second.
+    auto rateStart = last;
+    long rateTicks = 0;
     while (running) {
         StrataEvent e;
         while (engine->pollEvent(e)) {
@@ -260,10 +292,15 @@ int main(int argc, char** argv) {
                     case kComma: speed = std::max(speed - 1, 0); break;
                     case kPeriod: speed = std::min(speed + 1, 5); break;
                     case kH: help(); break;
+                    case kTab:
+                        if (!e.repeat) showHud = !showHud;
+                        break;
                     case kR:
                         if (!e.repeat) {
                             a.config.seed += 1;
                             env = std::make_unique<MicroEnvironment>(a.config);
+                            history.clear();
+                            history.observe(*env);
                             std::printf("new chamber, seed %llu\n", static_cast<unsigned long long>(a.config.seed));
                         }
                         break;
@@ -277,7 +314,16 @@ int main(int argc, char** argv) {
         last = now;
         clock.setTimeScale(paused ? 0.0 : kSpeeds[speed]);
         const int ticks = clock.advance(elapsed);
-        for (int i = 0; i < ticks; ++i) env->step();
+        for (int i = 0; i < ticks; ++i) stepOnce();
+        rateTicks += ticks;
+        const double rateSecs = std::chrono::duration<double>(now - rateStart).count();
+        if (rateSecs >= 1.0) {
+            hudState.measuredTicksPerSecond = static_cast<double>(rateTicks) / rateSecs;
+            rateStart = now;
+            rateTicks = 0;
+        }
+        hudState.paused = paused;
+        hudState.speed = kSpeeds[speed];
         if (env->tick() >= lastReport + 100) {
             lastReport = env->tick();
             std::printf("%s\n", env->summary().c_str());

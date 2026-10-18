@@ -63,6 +63,31 @@ are created after the pass. Then the fields update: seeps add nutrient, the
 air interface is reset to saturation, and each field diffuses (flux form,
 closed walls) and decays.
 
+## Statistics overlay
+
+`strata/src/hud.*` draws live statistics over the chamber with Strata's
+unlit overlays (ABI 1.5, `strata_submit_text`/`_lines`/`_points`):
+
+- top left: tick, simulated time (tick / `--tps`), seed, speed or pause
+  state and the measured tick rate in the window; population per species
+  (with a point in the species colour), the biofilm count, births and
+  deaths; the chamber totals of nutrient, waste, oxygen and cell energy with
+  their change per tick, next to what the seeps add each tick;
+- bottom left: a legend for the current field view, a colour bar labelled at
+  concentrations for the single-field views or swatches for the composite;
+- bottom right: a sparkline of each species' population and the total over
+  the last 960 ticks (`StatsHistory`, one sample every 4 ticks).
+
+Text is in pixels; overlay lines and points are in world space, so the HUD
+places them just past the camera's near plane under the pixel they belong
+on (`ScreenProjector`). Panels are one overlay line per pixel row.
+
+The HUD only reads the simulation (`MicroEnvironment::stats()`), so it
+cannot change a run: `mb_strata --headless` gives the same state hash with
+and without `--no-hud`, and a test checks the hash tick by tick while the
+HUD is built. Tab toggles it in the window; `--hud-scale N` sets the glyph
+size to 8·N pixels (by default it follows the drawable height).
+
 ## Determinism
 
 The same seed and tick count give a bit-identical state:
@@ -110,6 +135,5 @@ request.
 - No mutation or horizontal gene transfer yet (RESEARCH.md §5); species are
   fixed at birth.
 - The browser and server builds do not show the Strata micro-environment.
-- No text overlay in the window; statistics go to stdout.
 - The tuning is hand-picked so that all three species coexist on the default
   chamber; it is not calibrated to real organisms.

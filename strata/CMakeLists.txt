@@ -59,8 +59,8 @@ target_include_directories(mb_strata_sim PUBLIC src)
 target_link_libraries(mb_strata_sim PUBLIC strata::sim)
 mb_strata_warnings(mb_strata_sim)
 
-# Turning the simulation into Strata draw data.
-add_library(mb_strata_scene STATIC src/scene.cpp)
+# Turning the simulation into Strata draw data, and the on-screen HUD.
+add_library(mb_strata_scene STATIC src/scene.cpp src/hud.cpp)
 target_link_libraries(mb_strata_scene PUBLIC mb_strata_sim strata::static)
 mb_strata_warnings(mb_strata_scene)
 
