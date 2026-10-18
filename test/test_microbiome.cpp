@@ -38,6 +38,20 @@ TEST_CASE("AppConfig setters and getters work correctly", "[appconfig]") {
     REQUIRE(config.isSimulationOutputEnabled() == true);
 }
 
+// The console app runs on an unmodified AppConfig, so these defaults are what `mb_app` simulates.
+TEST_CASE("AppConfig defaults describe the console app's simulations", "[appconfig]") {
+    AppConfig config;
+
+    REQUIRE(config.getEnvironmentSize() == 10);
+    REQUIRE(config.getEntityFactor() == 10);
+    // 0 runs each simulation until every microorganism is dead
+    REQUIRE(config.getMaxTicks() == 0);
+    // 0 runs ticks back to back with no sleep in between
+    REQUIRE(config.getTickLengthInSeconds() == 0);
+    REQUIRE(config.getNumSimulations() == 10);
+    REQUIRE(config.isSimulationOutputEnabled() == true);
+}
+
 // Microorganism Tests
 TEST_CASE("Microorganism energy consumption", "[microorganism]") {
     Microorganism microorganism(0, "Test Microorganism");
@@ -187,6 +201,28 @@ TEST_CASE("Microbiome entity tracking and lifecycle", "[microbiome]") {
         REQUIRE(microbiome.getMicroorganisms().size() == populationBefore);
         REQUIRE(microbiome.getNumEntities() == (int) populationBefore);
     }
+}
+
+// The population is size x entityFactor, not size x size x entityFactor: a 4x4 grid with an
+// entity factor of 3 starts with 12 microorganisms.
+TEST_CASE("A new microbiome places size x entityFactor living microorganisms on the grid", "[microbiome]") {
+    int size = 4;
+    int entityFactor = 3;
+    Microbiome microbiome(0, "Test Microbiome", size, entityFactor);
+
+    std::vector<Microorganism*> microorganisms = microbiome.getMicroorganisms();
+    REQUIRE(microorganisms.size() == 12);
+    REQUIRE(microbiome.getNumEntities() == 12);
+    REQUIRE(microbiome.getNumAliveMicroorganisms() == 12);
+    REQUIRE(microbiome.getNumDeadMicroorganisms() == 0);
+    REQUIRE(microbiome.getBiomatter().empty());
+
+    // ids are handed out in creation order starting from 0
+    for (size_t i = 0; i < microorganisms.size(); i++) {
+        REQUIRE(microorganisms[i]->getId() == (int) i);
+        REQUIRE(microbiome.isMicroorganismPresent((int) i));
+    }
+    REQUIRE_FALSE(microbiome.isMicroorganismPresent(12));
 }
 
 // addMicroorganism() tracks a microorganism without placing it on the grid, which is exactly the
@@ -354,6 +390,31 @@ TEST_CASE("Death produces forageable biomatter", "[microbiome]") {
     // the population's energy didn't just vanish - it should still be
     // recoverable as biomatter in the environment.
     REQUIRE(microbiome.getTotalEnergy() > 0);
+}
+
+// On a 1x1 grid nothing moves, so the only change this tick is the first microorganism's death.
+// The yield is a fixed constant rather than anything derived from the dead organism (see #30).
+TEST_CASE("Biomatter left by a death takes the next free entity id and a fixed yield", "[microbiome][biomatter]") {
+    Microbiome microbiome(0, "Test Microbiome", 1, 2);
+    std::vector<Microorganism*> microorganisms = microbiome.getMicroorganisms();
+    REQUIRE(microorganisms.size() == 2);
+    microorganisms[0]->setMetabolicRate(1);
+    microorganisms[0]->setEnergy(1);
+    // the survivor stays well below the reproduction threshold
+    microorganisms[1]->setMetabolicRate(1);
+    microorganisms[1]->setEnergy(500);
+
+    microbiome.initiateMicroorganismMovement();
+
+    std::vector<Biomatter*> biomatter = microbiome.getBiomatter();
+    REQUIRE(biomatter.size() == 1);
+    // ids 0 and 1 belong to the initial population, so the biomatter is entity 2
+    REQUIRE(biomatter[0]->getId() == 2);
+    // the dead organism had no energy left, yet 60 units appear; the survivor forages 1 of
+    // them (its metabolic rate) later in the same tick
+    REQUIRE(biomatter[0]->getEnergy() == 59);
+    REQUIRE(microorganisms[1]->getEnergy() == 500);
+    REQUIRE(microbiome.getNumDeadMicroorganisms() == 1);
 }
 
 // On a 1x1 grid there are no adjacent locations, so nothing moves and every entity shares the
