@@ -12,3 +12,4 @@ log.*.txt
 
 # Not read by `make`; excluded to keep the build context small.
 .git
+build-strata
