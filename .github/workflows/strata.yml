@@ -1,0 +1,60 @@
+# Builds and tests the opt-in Strata micro-environment (strata/, docs/STRATA.md):
+# the simulation's Catch2 tests, a headless render smoke test on Mesa
+# llvmpipe, a headless screenshot and a tick-rate bench. The console app,
+# mb_webapp, the Docker image and the browser build are covered by
+# docker-build.yml and browser.yml and do not depend on this job.
+name: Strata build
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: strata-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  strata:
+    name: mb_strata (build, tests, headless smoke)
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: llvmpipe
+      __EGL_VENDOR_LIBRARY_FILENAMES: /usr/share/glvnd/egl_vendor.d/50_mesa.json
+    steps:
+      - name: Install toolchain, SDL3 build dependencies and Mesa
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates git build-essential cmake pkg-config \
+            libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev \
+            libegl1 libegl-mesa0 libgl1-mesa-dri libgl1
+
+      - uses: actions/checkout@v4
+
+      - name: Configure (Strata fetched at strata/strata.ref)
+        run: cmake -S strata -B build-strata -DCMAKE_BUILD_TYPE=Release -DMB_STRATA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build-strata -j 4
+
+      - name: Test (simulation + headless render smoke)
+        run: ctest --test-dir build-strata --output-on-failure
+
+      - name: Headless screenshot
+        run: build-strata/mb_strata --headless --ticks 600 --screenshot mb-strata-600.png
+
+      - name: Bench (ticks per second, 128x128)
+        run: build-strata/mb_strata --bench --ticks 2000
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mb-strata-screenshot
+          path: mb-strata-*.png
+          if-no-files-found: ignore

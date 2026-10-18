@@ -7,3 +7,4 @@ log.microbiome.txt
 log.simulation.txt
 log.tests.txt
 web/build/
+build-strata/

@@ -4,6 +4,14 @@
 
 This application allows the user to witness the activity of a virtual microbial community.
 
+<p align="center">
+  <img src="assets/strata/micro-environment.gif" width="460" alt="A 128 by 128 micro-environment seen from above at an angle: rock grains stand on a field that starts bright green with nutrient. Blue aerobes, orange fermenters and pink cross-feeders swim through it, eat the nutrient away and gather into glowing colonies around twelve nutrient seeps, while purple waste plumes spread around the colonies and a blue oxygen band stays near the top edge.">
+  <br>
+  <em>The opt-in Strata build (<code>mb_strata</code>): 960 ticks of a 128×128 chamber, simulated with Strata's
+  <code>strata::sim</code> and drawn by the Strata engine (headless, Mesa llvmpipe). Green is nutrient, purple
+  waste, blue oxygen; see <a href="#micro-environment-on-strata-opt-in">below</a>.</em>
+</p>
+
 ## Play in your browser
 The simulation also runs entirely in your browser (compiled to WebAssembly with Emscripten), no server needed:
 
@@ -13,6 +21,62 @@ The simulation also runs entirely in your browser (compiled to WebAssembly with 
 This is in addition to the existing server-backed live viewer at https://microbiome.preponderous.org, which stays as it is.
 
 To build it yourself, activate an [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) (CI uses 6.0.10) and run `make web` (or `web/build.sh`). It writes `web/build/index.html`, `index.js` and `index.wasm`; serve that directory with any static file server, e.g. `python3 -m http.server -d web/build 8000`, and open http://localhost:8000. The entry point is `src/browser.cpp` (the page is `web/shell.html`): it runs the same `Microbiome` the console app and web server run, one tick every 200 ms, starting a new generation after an extinction just like `mb_webapp`. It reports no usage, writes no log files, and the native targets never compile it. `.github/workflows/browser.yml` builds it on every pull request and push.
+
+## Micro-environment on Strata (opt-in)
+`mb_strata` simulates a much richer micro-environment with the
+[Strata](https://github.com/Preponderous-Software/strata) engine: a 128×128 chamber (any size up to
+1025×1025) with **diffusing nutrient, waste and oxygen fields**, solid **grains** that biofilms grow on,
+and three species of microorganism as Strata entities:
+
+- **aerobes** (blue) swim up the nutrient gradient and need oxygen, which only diffuses in from the air
+  interface at the top edge, for a full yield;
+- **fermenters** (orange) are anaerobes that oxygen harms; they settle into **biofilms** (flat tiles) on
+  grains, on the chamber wall or when crowded, and disperse again when starving;
+- **cross-feeders** (pink) live on the others' waste and swim up the waste gradient.
+
+The console app's traits carry over: starting energy and metabolic rate ranges, binary fission at 900
+energy with a cost of 100, biomass returned to the environment on death and an 80% chemotaxis bias,
+now applied to a run-and-tumble walk up real gradients. Nutrient seeps below the oxic band set up
+opposing gradients, as in a Winogradsky column.
+
+<p align="center">
+  <img src="assets/strata/field-views.png" width="640" alt="The same chamber at tick 600 in four views: composite colours, nutrient (viridis), waste (magma) and oxygen (ice). Waste glows around each colony and oxygen only reaches a band at the top.">
+  <br><em>One chamber at tick 600 in the four field views: composite, nutrient, waste and oxygen.</em>
+</p>
+<p align="center">
+  <img src="assets/strata/closeup.png" width="480" alt="A close, angled view of colonies of blue, orange and pink cells beside rock grains that cast soft shadows; a few lone swimmers cross the dark field between them.">
+  <br><em>Zoomed in (<code>--zoom 2.2 --yaw 20</code>): colonies at nutrient seeps beside grains, lit by Strata's sun and point lights.</em>
+</p>
+
+It is deterministic: the simulation draws every random number from one seeded generator, runs on a fixed
+tick and never reads a clock, so a seed gives a bit-identical state hash after the same number of ticks.
+Measured with `mb_strata --bench` (simulation only, one thread, GCC 9.4 Release build on an i9-10850K):
+the default 128×128 chamber, with a mean population of about 1,100, runs at about 1,150–1,250 ticks per
+second; a 256×256 chamber (`--size 256 --per-species 1200`, mean population about 2,000) at about 290.
+
+Building it needs CMake 3.24 or newer, a C++17 compiler and SDL3's X11 headers (`libx11-dev libxext-dev
+libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev` on Debian/Ubuntu); CMake fetches Strata at
+the commit pinned in `strata/strata.ref`:
+
+```sh
+make strata                                   # or: cmake -S strata -B build-strata && cmake --build build-strata -j4
+ctest --test-dir build-strata --output-on-failure
+build-strata/mb_strata                        # a window; H prints the controls
+build-strata/mb_strata --headless --ticks 600 --screenshot out.png    # no window, no X server
+build-strata/mb_strata --headless --ticks 960 --frames frames/ --frame-every 12
+build-strata/mb_strata --bench --ticks 2000   # ticks per second, no rendering
+```
+
+In the window: WASD/arrows pan, Q/E rotate, mouse wheel or +/- zoom, drag to pan, 1–4 switch the field
+view, space pauses, `,`/`.` change speed, R starts a new seed. Options: `--seed`, `--size`,
+`--per-species`, `--view`, `--zoom`, `--yaw`, `--tps`.
+
+This build is separate from everything else: `make`, `mb_app`, `mb_webapp` (microbiome.preponderous.org),
+the browser/arcade build and both test suites are unchanged and do not need CMake or Strata. The browser
+build stays on the current simulation because Strata needs OpenGL 4.5, which WebGL does not offer.
+`.github/workflows/strata.yml` builds and tests it in CI. The design, what moved to Strata and what
+stayed, and the known gaps are in [docs/STRATA.md](docs/STRATA.md). `mb_strata` reports no usage and
+writes no log files.
 
 ## Example Console Output
 ```
@@ -57,6 +121,7 @@ The project now uses **Catch2** as the primary testing framework, providing bett
 - `make test` - Alias for `catch2_tests`
 - `./run_tests.sh` - Run both Catch2 and legacy tests
 - `make` - Builds both test binaries alongside the applications, so a test suite that stops compiling fails the build rather than going unnoticed
+- `ctest --test-dir build-strata` - after `make strata`: the opt-in Strata build's Catch2 tests (diffusion mass conservation, chemotaxis direction, same-seed determinism, the console app's fission/death rules) and a headless render smoke test; see [docs/STRATA.md](docs/STRATA.md)
 
 CI (`.github/workflows/docker-build.yml`) builds the production image and then executes both
 suites inside it, so a failing assertion fails the build too, not only a failing compile.
