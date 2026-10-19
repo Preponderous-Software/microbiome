@@ -62,7 +62,7 @@ jobs:
           test -s site/index.html && test -s site/mb_strata.wasm && test -s site/classic/index.wasm
           grep -q 'danielstephenson.dev/play' site/index.html
           grep -q 'danielstephenson.dev/play' site/classic/index.html
-          grep -q 'href="classic/"' site/index.html
+          grep -Eq 'href="?classic/"?[ >]' site/index.html
           echo "site: $(du -sh site | cut -f1); first load gzip: $(cat site/index.html site/mb_strata.js site/mb_strata.wasm | gzip -9 | wc -c) bytes"
 
       - uses: actions/setup-node@v4
@@ -85,7 +85,7 @@ jobs:
           node strata/web/smoke.cjs http://127.0.0.1:8080/ smoke-out/desktop --expect-state "$expected"
           node strata/web/smoke.cjs http://127.0.0.1:8080/ smoke-out/phone --phone --expect-state "$expected"
           # The classic version is served next to it and links back.
-          curl -fsS http://127.0.0.1:8080/classic/ | grep -q 'href="../"'
+          curl -fsS http://127.0.0.1:8080/classic/ | grep -Eq 'href="?\.\./"?[ >]'
           curl -fsS -o /dev/null http://127.0.0.1:8080/classic/index.wasm
           {
             echo "### mb_strata in headless Chromium (SwiftShader)"
