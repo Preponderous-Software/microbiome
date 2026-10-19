@@ -6,6 +6,7 @@
 //             [--headless --ticks N [--screenshot out.png] [--frames DIR --frame-every N]]
 //             [--bench --ticks N]
 //             [--window-width W --window-height H]
+//             [--record out.usda [--record-every N] [--record-field N]]
 //
 // Without --headless or --bench it opens a window. The simulation runs on a
 // fixed tick (strata::sim::FixedStep); the window's clock only decides how
@@ -13,6 +14,12 @@
 //
 // The HUD (src/hud.*) draws live statistics with Strata's overlays; it only
 // reads the simulation. Tab toggles it in the window, --no-hud turns it off.
+//
+// --record writes the run as a usd-replay/1 replay (src/replay.*): one sample
+// every N ticks (default 10) plus the first and last, the field heatmap of
+// --view at --record-field columns (default 32). Headless, the file is written
+// after the last tick; in the window, on quit (or before R starts a new
+// chamber, which ends the recording). Recording only reads the simulation.
 //
 // mb_strata reports no usage and writes no log files.
 #include <algorithm>
@@ -28,6 +35,7 @@
 
 #include "../src/hud.h"
 #include "../src/micro_environment.h"
+#include "../src/replay.h"
 #include "../src/scene.h"
 
 using namespace mbstrata;
@@ -58,6 +66,10 @@ struct Args {
     float yaw = 0.0f;
     bool hud = true;
     float hudScale = 0.0f;  // glyph cell in pixels; 0 picks one from the window height
+    std::string record;     // usd-replay/1 output (.usda); empty: no recording
+    long recordEvery = 10;
+    int recordField = 32;
+    std::string commandLine;
 };
 
 void usage(const char* argv0) {
@@ -66,7 +78,8 @@ void usage(const char* argv0) {
                  "          [--view composite|nutrient|waste|oxygen] [--tps N] [--zoom F] [--yaw DEG]\n"
                  "          [--no-hud] [--hud-scale N]\n"
                  "          [--headless --ticks N [--screenshot out.png] [--frames DIR --frame-every N]]\n"
-                 "          [--bench --ticks N] [--window-width W --window-height H]\n",
+                 "          [--bench --ticks N] [--window-width W --window-height H]\n"
+                 "          [--record out.usda [--record-every N] [--record-field N]]\n",
                  argv0);
 }
 
@@ -104,6 +117,9 @@ bool parse(int argc, char** argv, Args& a) {
         else if (k == "--yaw") a.yaw = static_cast<float>(std::atof(val().c_str()));
         else if (k == "--no-hud") a.hud = false;
         else if (k == "--hud-scale") a.hudScale = static_cast<float>(8 * std::max(1, std::min(8, std::atoi(val().c_str()))));
+        else if (k == "--record") a.record = val();
+        else if (k == "--record-every") a.recordEvery = std::max(1L, std::atol(val().c_str()));
+        else if (k == "--record-field") a.recordField = std::max(1, std::min(256, std::atoi(val().c_str())));
         else if (k == "--tps") a.ticksPerSecond = std::max(1.0, std::atof(val().c_str()));
         else if (k == "--view") {
             if (!parseView(val(), a.view)) return false;
@@ -113,6 +129,11 @@ bool parse(int argc, char** argv, Args& a) {
         std::fprintf(stderr, "the chamber must be between 8 and 1025 cells on each side\n");
         return false;
     }
+    if (!a.record.empty() && (a.record.size() < 5 || a.record.compare(a.record.size() - 5, 5, ".usda") != 0)) {
+        std::fprintf(stderr, "--record writes text USD: the path must end in .usda (convert with `usd-recorder replay convert`)\n");
+        return false;
+    }
+    for (int i = 0; i < argc; ++i) a.commandLine += (i ? " " : "") + std::string(i ? argv[i] : "mb_strata");
     return true;
 }
 
@@ -157,6 +178,33 @@ int main(int argc, char** argv) {
     if (a.bench) return bench(a);
 
     std::unique_ptr<MicroEnvironment> env = std::make_unique<MicroEnvironment>(a.config);
+    std::unique_ptr<ReplayRecorder> recorder;
+    if (!a.record.empty()) {
+        ReplayOptions ro;
+        ro.every = a.recordEvery;
+        ro.fieldColumns = a.recordField;
+        ro.view = a.view;
+        ro.ticksPerSecond = a.ticksPerSecond;
+        ro.simVersion = MB_STRATA_SIM_VERSION;
+        ro.source = a.commandLine;
+        recorder = std::make_unique<ReplayRecorder>(*env, ro);
+        recorder->observe(*env);
+    }
+    // Writes the recording (once) and ends it. False when the file could not be written.
+    auto saveRecording = [&]() -> bool {
+        if (!recorder) return true;
+        recorder->finish(*env);
+        try {
+            recorder->write(a.record);
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "mb_strata: cannot write the replay: %s\n", e.what());
+            recorder.reset();
+            return false;
+        }
+        std::printf("replay: %zu samples to %s\n", recorder->samples(), a.record.c_str());
+        recorder.reset();
+        return true;
+    };
 
     strata::EngineDesc desc;
     desc.surface = a.headless ? STRATA_SURFACE_HEADLESS : STRATA_SURFACE_WINDOW;
@@ -197,6 +245,7 @@ int main(int argc, char** argv) {
     auto stepOnce = [&] {
         env->step();
         history.observe(*env);  // reads only; kept while the HUD is hidden
+        if (recorder) recorder->observe(*env);  // reads only, too
     };
 
     auto draw = [&] {
@@ -242,7 +291,7 @@ int main(int argc, char** argv) {
         draw();
         if (!a.screenshot.empty()) engine->saveScreenshotPng(a.screenshot);
         std::printf("%s\nstate %016llx\n", env->summary().c_str(), static_cast<unsigned long long>(env->stateHash()));
-        return 0;
+        return saveRecording() ? 0 : 1;
     }
 
     help();
@@ -297,6 +346,7 @@ int main(int argc, char** argv) {
                         break;
                     case kR:
                         if (!e.repeat) {
+                            saveRecording();  // a new chamber ends the recording
                             a.config.seed += 1;
                             env = std::make_unique<MicroEnvironment>(a.config);
                             history.clear();
@@ -331,5 +381,5 @@ int main(int argc, char** argv) {
         draw();
         engine->present();
     }
-    return 0;
+    return saveRecording() ? 0 : 1;
 }

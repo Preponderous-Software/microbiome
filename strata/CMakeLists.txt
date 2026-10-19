@@ -53,11 +53,30 @@ function(mb_strata_warnings target)
     endif()
 endfunction()
 
-# The simulation: no GL, links only strata::sim.
-add_library(mb_strata_sim STATIC src/micro_environment.cpp)
+# The simulation and the field colouring: no GL, links only strata::sim.
+add_library(mb_strata_sim STATIC src/micro_environment.cpp src/field_view.cpp)
 target_include_directories(mb_strata_sim PUBLIC src)
 target_link_libraries(mb_strata_sim PUBLIC strata::sim)
 mb_strata_warnings(mb_strata_sim)
+
+# Recording a run as a usd-replay/1 replay (usd-recorder's vendored writer). No GL.
+# The version of this build (+ commit, when built from a git checkout) goes into
+# each replay's metadata.
+set(MB_STRATA_SIM_VERSION "${PROJECT_VERSION}")
+find_package(Git QUIET)
+if(GIT_FOUND)
+    execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse --short=12 HEAD
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" OUTPUT_VARIABLE MB_STRATA_COMMIT
+        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE MB_STRATA_GIT_RESULT)
+    if(MB_STRATA_GIT_RESULT EQUAL 0 AND MB_STRATA_COMMIT)
+        set(MB_STRATA_SIM_VERSION "${PROJECT_VERSION}+${MB_STRATA_COMMIT}")
+    endif()
+endif()
+add_library(mb_strata_replay STATIC src/replay.cpp)
+target_include_directories(mb_strata_replay PUBLIC src PRIVATE vendor)
+target_link_libraries(mb_strata_replay PUBLIC mb_strata_sim)
+target_compile_definitions(mb_strata_replay PUBLIC MB_STRATA_SIM_VERSION="${MB_STRATA_SIM_VERSION}")
+mb_strata_warnings(mb_strata_replay)
 
 # Turning the simulation into Strata draw data, and the on-screen HUD.
 add_library(mb_strata_scene STATIC src/scene.cpp src/hud.cpp)
@@ -65,16 +84,16 @@ target_link_libraries(mb_strata_scene PUBLIC mb_strata_sim strata::static)
 mb_strata_warnings(mb_strata_scene)
 
 add_executable(mb_strata app/main.cpp)
-target_link_libraries(mb_strata PRIVATE mb_strata_scene)
+target_link_libraries(mb_strata PRIVATE mb_strata_scene mb_strata_replay)
 mb_strata_warnings(mb_strata)
 
 if(MB_STRATA_BUILD_TESTS)
     enable_testing()
     set(CATCH2_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../test/lib")
 
-    add_executable(mb_strata_tests test/main.cpp test/test_micro_environment.cpp)
+    add_executable(mb_strata_tests test/main.cpp test/test_micro_environment.cpp test/test_replay.cpp)
     target_include_directories(mb_strata_tests SYSTEM PRIVATE "${CATCH2_DIR}")
-    target_link_libraries(mb_strata_tests PRIVATE mb_strata_sim)
+    target_link_libraries(mb_strata_tests PRIVATE mb_strata_sim mb_strata_replay)
     mb_strata_warnings(mb_strata_tests)
     add_test(NAME mb_strata_tests COMMAND mb_strata_tests)
 

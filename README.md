@@ -83,7 +83,36 @@ build-strata/mb_strata --bench --ticks 2000   # ticks per second, no rendering
 In the window: WASD/arrows pan, Q/E rotate, mouse wheel or +/- zoom, drag to pan, 1–4 switch the field
 view, space pauses, `,`/`.` change speed, Tab shows or hides the statistics overlay, R starts a new seed.
 Options: `--seed`, `--size`, `--per-species`, `--view`, `--zoom`, `--yaw`, `--tps`, `--no-hud`,
-`--hud-scale N` (glyph size in multiples of 8 pixels; by default it follows the window height).
+`--hud-scale N` (glyph size in multiples of 8 pixels; by default it follows the window height),
+`--record run.usda` (below).
+
+### Shareable replays (`--record`)
+`mb_strata --record run.usda` writes the run as a replay in the
+[`usd-replay/1`](https://github.com/Preponderous-Software/usd-recorder/blob/v0.2.0/docs/REPLAY.md) contract:
+one OpenUSD layer that any player can show without knowing the simulation. Each species is one `Points`
+set with stable ids, the chamber's heatmap (in the `--view` colours) is a coarse colour grid, the grains
+are static cubes, and every sample carries the run's state hash, so anyone can re-run the seed and check it.
+
+```sh
+build-strata/mb_strata --headless --ticks 2000 --no-hud --record run.usda --record-every 10 --record-field 32
+pip install "usd-recorder @ git+https://github.com/Preponderous-Software/usd-recorder@v0.2.0"
+usd-recorder replay validate run.usda && usd-recorder replay convert run.usda run.usdc
+```
+
+<p align="center">
+  <img src="assets/strata/replay.gif" width="560" alt="The recorded run played back in usd-web's three.js replay player: rock grains stand as grey blocks on a coarse green-to-purple field; blue aerobes, orange fermenters and pink cross-feeders spread from the start, die back and cluster into colonies beside the grains while the field turns from nutrient green to waste purple. A panel lists the tick, the state hash and each species' population; a timeline scrubber runs along the bottom.">
+  <br><em>Seed 1, 2,000 ticks, a sample every 10: a 19.3 MB <code>.usda</code> (5.7 MB as <code>.usdc</code>),
+  converted with <a href="https://github.com/Preponderous-Software/usd-web">usd-web</a> to a 1.3 MB web replay
+  and played in its browser player.</em>
+</p>
+
+Recording only reads the simulation: the state hash is the same with and without `--record`, which a test
+checks tick by tick and CI checks again on a full run. Samples are taken every `--record-every N` ticks
+(default 10) plus the first and last tick; `--record-field N` sets the heatmap's columns (default 32). In
+the window the file is written on quit (R, a new chamber, ends the recording). The writer is
+usd-recorder's dependency-free C++ header, vendored at v0.2.0 (MIT) in `strata/vendor/usd_recorder/`, so
+no OpenUSD is needed. CI uploads each pull request's replay, validated and converted to `.usdc`, as the
+`mb-strata-replay` artifact.
 
 This build is separate from everything else: `make`, `mb_app`, `mb_webapp` (microbiome.preponderous.org),
 the browser/arcade build and both test suites are unchanged and do not need CMake or Strata. The browser
@@ -135,7 +164,7 @@ The project now uses **Catch2** as the primary testing framework, providing bett
 - `make test` - Alias for `catch2_tests`
 - `./run_tests.sh` - Run both Catch2 and legacy tests
 - `make` - Builds both test binaries alongside the applications, so a test suite that stops compiling fails the build rather than going unnoticed
-- `ctest --test-dir build-strata` - after `make strata`: the opt-in Strata build's Catch2 tests (diffusion mass conservation, chemotaxis direction, same-seed determinism, the console app's fission/death rules), headless render smoke tests and statistics-overlay tests; see [docs/STRATA.md](docs/STRATA.md)
+- `ctest --test-dir build-strata` - after `make strata`: the opt-in Strata build's Catch2 tests (diffusion mass conservation, chemotaxis direction, same-seed determinism, the console app's fission/death rules), headless render smoke tests, statistics-overlay tests and replay tests (recording leaves the state hash unchanged); see [docs/STRATA.md](docs/STRATA.md)
 
 CI (`.github/workflows/docker-build.yml`) builds the production image and then executes both
 suites inside it, so a failing assertion fails the build too, not only a failing compile.
