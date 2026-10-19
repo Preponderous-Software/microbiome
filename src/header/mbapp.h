@@ -21,7 +21,6 @@ class MicrobiomeApplication {
         AppConfig config;
         Simulation* simulation;
         std::vector<Result> results;
-        void printResults();
         void printResultAverages();
 };
 
