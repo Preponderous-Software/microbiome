@@ -88,6 +88,35 @@ and without `--no-hud`, and a test checks the hash tick by tick while the
 HUD is built. Tab toggles it in the window; `--hud-scale N` sets the glyph
 size to 8·N pixels (by default it follows the drawable height).
 
+## Replays
+
+`strata/src/replay.*` records a run as a `usd-replay/1` replay (usd-recorder's
+`docs/REPLAY.md`) through usd-recorder's vendored, dependency-free C++ writer
+(`strata/vendor/usd_recorder/`, v0.2.0): `mb_strata --record run.usda`.
+
+- One sample every `--record-every` ticks (default 10) plus the first and the
+  last; the time code is the tick and `tickRate` is `--tps`.
+- One `Points` set per species. An entity's id is
+  `(generation << 32) | slot`, so it is stable for the cell's life and never
+  reused by another cell. Free swimmers sit at z 0.7, biofilm cells at z 0.35.
+- One colour field: the `--view` heatmap block-averaged to `--record-field`
+  columns (rows follow the aspect); a coarse cell that is mostly rock takes
+  the grain colour. The same mostly-rock cells are the static `grains` cubes.
+- Stats per sample: population per species, biofilm cells, births, deaths and
+  the nutrient, waste and oxygen totals.
+- Replay y is the chamber's row flipped (`height - y`), so the air interface
+  (row 0) is at the far edge, as in the window; z is up.
+- The state hash of each sample is `MicroEnvironment::stateHash()` at that
+  tick, and the metadata names it.
+
+The recorder takes the simulation `const` and is only called after a tick, so
+it cannot change a run: `test_replay.cpp` checks the state hash tick by tick
+with and without a recorder, and CI compares the final hash of a full headless
+run with and without `--record`, then validates the replay with
+`usd-recorder replay validate` and converts it to `.usdc` (uploaded as an
+artifact). The field colouring (`field_view.*`) moved out of `scene.*` so the
+recorder and its tests need no GL.
+
 ## Determinism
 
 The same seed and tick count give a bit-identical state:

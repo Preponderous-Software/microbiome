@@ -1,6 +1,7 @@
 # Builds and tests the opt-in Strata micro-environment (strata/, docs/STRATA.md):
 # the simulation's Catch2 tests, a headless render smoke test on Mesa
-# llvmpipe, a headless screenshot and a tick-rate bench. The console app,
+# llvmpipe, a headless screenshot, a recorded usd-replay/1 replay (validated
+# and converted with usd-recorder) and a tick-rate bench. The console app,
 # mb_webapp, the Docker image and the browser build are covered by
 # docker-build.yml and browser.yml and do not depend on this job.
 name: Strata build
@@ -54,6 +55,34 @@ jobs:
           build-strata/mb_strata --headless --ticks 600 --no-hud --screenshot mb-strata-600-no-hud.png | tee no-hud.log
           # The HUD only reads the simulation: the state hash must not change.
           test "$(grep '^state ' hud.log)" = "$(grep '^state ' no-hud.log)"
+
+      - name: Record a replay (usd-replay/1) and check recording does not change the run
+        shell: bash
+        run: |
+          set -euo pipefail
+          build-strata/mb_strata --headless --ticks 2000 --no-hud --window-width 64 --window-height 64 \
+            --record mb-strata-replay.usda --record-every 10 --record-field 32 | tee record.log
+          build-strata/mb_strata --headless --ticks 2000 --no-hud --window-width 64 --window-height 64 | tee plain.log
+          test "$(grep '^state ' record.log)" = "$(grep '^state ' plain.log)"
+          grep -q '^replay: 201 samples' record.log
+
+      - name: Validate the replay and convert it to .usdc (usd-recorder v0.2.0)
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-venv
+          python3 -m venv /tmp/usdr
+          /tmp/usdr/bin/pip install --quiet "usd-recorder @ git+https://github.com/Preponderous-Software/usd-recorder@v0.2.0"
+          /tmp/usdr/bin/usd-recorder replay validate mb-strata-replay.usda
+          /tmp/usdr/bin/usd-recorder replay convert mb-strata-replay.usda mb-strata-replay.usdc
+          /tmp/usdr/bin/usd-recorder replay info mb-strata-replay.usdc | head -40
+          ls -l mb-strata-replay.usda mb-strata-replay.usdc
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mb-strata-replay
+          path: mb-strata-replay.usdc
+          if-no-files-found: error
 
       - name: Bench (ticks per second, 128x128)
         run: build-strata/mb_strata --bench --ticks 2000
