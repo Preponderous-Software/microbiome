@@ -9,6 +9,10 @@
 #
 # Strata is fetched at the commit in strata.ref, or taken from a local
 # checkout with -DFETCHCONTENT_SOURCE_DIR_STRATA=<path>. See docs/STRATA.md.
+#
+# With Emscripten (emcmake cmake ...) mb_strata becomes a WebGL 2 page,
+# mb_strata.html (+ .js, .wasm), built on Strata's GLES 3.0 device, and the
+# Catch2 tests run under Node. See docs/STRATA.md, "In a browser".
 cmake_minimum_required(VERSION 3.24)
 project(microbiome_strata VERSION 0.1.0 LANGUAGES C CXX)
 
@@ -21,7 +25,20 @@ endif()
 
 option(MB_STRATA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(MB_STRATA_BUILD_TESTS "Build the Catch2 tests" ON)
-option(MB_STRATA_RENDER_TESTS "Also build the headless render smoke test (needs EGL + a GL 4.5 driver at run time)" ON)
+if(EMSCRIPTEN)
+    set(MB_STRATA_RENDER_TESTS_DEFAULT OFF)  # EGL only; the browser smoke test covers rendering
+else()
+    set(MB_STRATA_RENDER_TESTS_DEFAULT ON)
+endif()
+option(MB_STRATA_RENDER_TESTS "Also build the headless render smoke test (needs EGL + a GL 4.5 driver at run time)" ${MB_STRATA_RENDER_TESTS_DEFAULT})
+
+if(EMSCRIPTEN)
+    # Strata catches its exceptions as wasm exceptions (STRATA_WASM_EXCEPTIONS
+    # defaults to wasm) and everything in one module must use the same mode;
+    # mb_strata catches exceptions too (argument parsing, renderer start-up).
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-fwasm-exceptions>")
+    add_link_options(-fwasm-exceptions)
+endif()
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/strata.ref" MB_STRATA_DEFAULT_REF)
 string(STRIP "${MB_STRATA_DEFAULT_REF}" MB_STRATA_DEFAULT_REF)
@@ -86,6 +103,20 @@ mb_strata_warnings(mb_strata_scene)
 add_executable(mb_strata app/main.cpp)
 target_link_libraries(mb_strata PRIVATE mb_strata_scene mb_strata_replay)
 mb_strata_warnings(mb_strata)
+if(EMSCRIPTEN)
+    # The page: web/shell.html around the module. SDL3 draws on #canvas; the
+    # page passes the canvas size (and ?bench=N) as arguments and calls the
+    # mb_* functions in app/main.cpp for its buttons, mouse and touch.
+    set(MB_STRATA_SHELL "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html")
+    set_target_properties(mb_strata PROPERTIES SUFFIX ".html")
+    target_link_options(mb_strata PRIVATE
+        -sALLOW_MEMORY_GROWTH=1
+        -sSTACK_SIZE=1MB
+        -sEXPORTED_FUNCTIONS=_main,_mb_pan,_mb_zoom,_mb_rotate,_mb_set_view,_mb_toggle_pause,_mb_change_speed,_mb_toggle_hud,_mb_new_chamber,_mb_reset_camera,_mb_frames,_mb_tick
+        -sEXPORTED_RUNTIME_METHODS=ccall,ENV
+        "--shell-file=${MB_STRATA_SHELL}")
+    set_property(TARGET mb_strata APPEND PROPERTY LINK_DEPENDS "${MB_STRATA_SHELL}")
+endif()
 
 if(MB_STRATA_BUILD_TESTS)
     enable_testing()

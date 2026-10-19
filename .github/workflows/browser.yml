@@ -1,7 +1,15 @@
-# Builds the browser (Emscripten) version with web/build.sh and, when enabled,
-# deploys it to arcade as https://microbiome.play.danielstephenson.dev
-# (the server-backed viewer at microbiome.preponderous.org is separate and
-# unaffected by this workflow).
+# Builds Microbiome for the browser and, when enabled, deploys it to arcade as
+# https://microbiome.play.danielstephenson.dev :
+#
+#   /          the Strata micro-environment (strata/, mb_strata) on WebGL 2
+#   /classic/  the original 2D grid (web/build.sh), kept for browsers without
+#              WebGL 2 and for anyone who liked it
+#
+# The Strata page is smoke-tested in headless Chromium on a desktop and a
+# phone profile, and its WebAssembly run must reach the same state hash as the
+# native build (strata/test/state-seed1-2000.txt, also checked by strata.yml).
+# The server-backed viewer at microbiome.preponderous.org is separate and
+# unaffected by this workflow.
 name: Browser build
 
 on:
@@ -10,34 +18,98 @@ on:
     branches: [master]
   workflow_dispatch:
 
+concurrency:
+  group: browser-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   browser:
+    name: Web build and smoke test (headless Chromium)
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      # Strata's own CI pins emsdk 6.0.11 (docs/WEB.md in Strata).
       - uses: mymindstorm/setup-emsdk@v16
         with:
-          version: 6.0.10
-      - name: Build (web/build.sh)
+          version: 6.0.11
+
+      - name: Build the classic version (web/build.sh)
         run: web/build.sh
-      - name: Check the page, script and module exist
+
+      - name: Configure the Strata version (emcmake, Strata fetched at strata/strata.ref)
         run: |
-          test -s web/build/index.html
-          test -s web/build/index.js
-          test -s web/build/index.wasm
-          grep -q 'danielstephenson.dev/play' web/build/index.html
+          cmake --version
+          emcmake cmake -S strata -B build-web -DCMAKE_BUILD_TYPE=Release -DMB_STRATA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build the Strata version
+        run: cmake --build build-web -j 4
+
+      - name: Test the simulation as WebAssembly (Catch2 under Node)
+        run: ctest --test-dir build-web --output-on-failure
+
+      - name: Assemble the site
+        run: |
+          mkdir -p site/classic
+          cp build-web/mb_strata.html site/index.html
+          cp build-web/mb_strata.js build-web/mb_strata.wasm site/
+          cp web/build/index.html web/build/index.js web/build/index.wasm site/classic/
+          test -s site/index.html && test -s site/mb_strata.wasm && test -s site/classic/index.wasm
+          grep -q 'danielstephenson.dev/play' site/index.html
+          grep -q 'danielstephenson.dev/play' site/classic/index.html
+          grep -Eq 'href="?classic/"?[ >]' site/index.html
+          echo "site: $(du -sh site | cut -f1); first load gzip: $(cat site/index.html site/mb_strata.js site/mb_strata.wasm | gzip -9 | wc -c) bytes"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Playwright 1.61.1 and its Chromium
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund playwright@1.61.1
+          npx playwright install --with-deps chromium
+
+      - name: Smoke test (desktop, then iPhone 13 profile) and the wasm state hash
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 --directory site > http.log 2>&1 &
+          sleep 1
+          expected=$(tr -d '[:space:]' < strata/test/state-seed1-2000.txt)
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node strata/web/smoke.cjs http://127.0.0.1:8080/ smoke-out/desktop --expect-state "$expected"
+          node strata/web/smoke.cjs http://127.0.0.1:8080/ smoke-out/phone --phone --expect-state "$expected"
+          # The classic version is served next to it and links back.
+          curl -fsS http://127.0.0.1:8080/classic/ | grep -Eq 'href="?\.\./"?[ >]'
+          curl -fsS -o /dev/null http://127.0.0.1:8080/classic/index.wasm
+          {
+            echo "### mb_strata in headless Chromium (SwiftShader)"
+            echo "- state after 2000 ticks, seed 1: wasm \`$(head -1 smoke-out/desktop/wasm-state.txt)\`, native \`$expected\`"
+            echo "- desktop: $(cat smoke-out/desktop/fps.txt)"
+            echo "- phone profile: $(cat smoke-out/phone/fps.txt)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload smoke screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-smoke
+          path: smoke-out/
+          if-no-files-found: ignore
+
       - name: Write the deploy version
         run: echo "$(tr -d '[:space:]' < version.txt)+g${GITHUB_SHA::7}" > "$RUNNER_TEMP/arcade-version.txt" && cat "$RUNNER_TEMP/arcade-version.txt"
+
       - name: Deploy to arcade
         if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && vars.ARCADE_ENABLED == 'true')
         uses: Stephenson-Software/arcade-deploy@v1
         with:
           slug: microbiome
           token: ${{ secrets.ARCADE_TOKEN }}
-          site-dir: web/build
+          site-dir: site
           version-file: ${{ runner.temp }}/arcade-version.txt

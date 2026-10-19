@@ -13,14 +13,20 @@ This application allows the user to witness the activity of a virtual microbial 
 </p>
 
 ## Play in your browser
-The simulation also runs entirely in your browser (compiled to WebAssembly with Emscripten), no server needed:
+The Strata micro-environment (below) runs entirely in your browser, compiled to WebAssembly and drawn with
+WebGL 2, no server needed. Drag to pan and scroll (or pinch) to zoom; the buttons switch the field, the
+clock and the statistics overlay:
 
 - https://microbiome.play.danielstephenson.dev
 - or find it among the other games at https://danielstephenson.dev/play
 
+The original 2D grid stays available at https://microbiome.play.danielstephenson.dev/classic/ (it also
+works in browsers without WebGL 2).
+
 This is in addition to the existing server-backed live viewer at https://microbiome.preponderous.org, which stays as it is.
 
-To build it yourself, activate an [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) (CI uses 6.0.10) and run `make web` (or `web/build.sh`). It writes `web/build/index.html`, `index.js` and `index.wasm`; serve that directory with any static file server, e.g. `python3 -m http.server -d web/build 8000`, and open http://localhost:8000. The entry point is `src/browser.cpp` (the page is `web/shell.html`): it runs the same `Microbiome` the console app and web server run, one tick every 200 ms, starting a new generation after an extinction just like `mb_webapp`. It reports no usage, writes no log files, and the native targets never compile it. `.github/workflows/browser.yml` builds it on every pull request and push.
+To build the Strata page yourself, see [docs/STRATA.md](docs/STRATA.md#in-a-browser) (`emcmake cmake -S strata -B build-web`).
+To build the classic page, activate an [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) (CI uses 6.0.11) and run `make web` (or `web/build.sh`). It writes `web/build/index.html`, `index.js` and `index.wasm`; serve that directory with any static file server, e.g. `python3 -m http.server -d web/build 8000`, and open http://localhost:8000. The entry point is `src/browser.cpp` (the page is `web/shell.html`): it runs the same `Microbiome` the console app and web server run, one tick every 200 ms, starting a new generation after an extinction just like `mb_webapp`. It reports no usage, writes no log files, and the native targets never compile it. `.github/workflows/browser.yml` builds both pages on every pull request and push, smoke-tests the Strata page in headless Chromium and deploys the site (Strata at `/`, classic at `/classic/`).
 
 ## Micro-environment on Strata (opt-in)
 `mb_strata` simulates a much richer micro-environment with the
@@ -115,8 +121,8 @@ no OpenUSD is needed. CI uploads each pull request's replay, validated and conve
 `mb-strata-replay` artifact.
 
 This build is separate from everything else: `make`, `mb_app`, `mb_webapp` (microbiome.preponderous.org),
-the browser/arcade build and both test suites are unchanged and do not need CMake or Strata. The browser
-build stays on the current simulation because Strata needs OpenGL 4.5, which WebGL does not offer.
+the classic browser build and both test suites are unchanged and do not need CMake or Strata. Built with
+Emscripten, `mb_strata` is the arcade page, on Strata's WebGL 2 (OpenGL ES 3.0) backend.
 `.github/workflows/strata.yml` builds and tests it in CI. The design, what moved to Strata and what
 stayed, and the known gaps are in [docs/STRATA.md](docs/STRATA.md). `mb_strata` reports no usage and
 writes no log files.

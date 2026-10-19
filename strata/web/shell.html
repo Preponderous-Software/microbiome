@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Microbiome</title>
+<meta name="description" content="A chamber of microbes, nutrient and oxygen, simulated and drawn in 3D in your browser with the Strata engine.">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b1210;
+    --panel: #111a17;
+    --panel-2: #17241f;
+    --line: #24362f;
+    --text: #d8e6df;
+    --muted: #8fae9e;
+    --accent: #4fd67a;
+    --error: #ff8a80;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  main { max-width: 1120px; margin: 0 auto; padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 4px 0 0; font-size: 1.25rem; font-weight: 600; }
+  p { margin: 0; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; max-width: 52rem; }
+  .stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  @media (max-width: 640px) { .stage { aspect-ratio: 1 / 1; } }
+  /* SDL sizes the canvas in CSS pixels; the page decides its size instead. */
+  canvas#canvas { display: block; width: 100% !important; height: 100% !important; outline: none; }
+  /* Mouse and touch land here and become mb_* calls (pan, zoom, rotate). */
+  #touch { position: absolute; inset: 0; touch-action: none; cursor: grab; }
+  #touch.dragging { cursor: grabbing; }
+  #status {
+    position: absolute; inset: 0; display: grid; place-items: center; text-align: center;
+    padding: 16px; color: var(--muted); pointer-events: none;
+  }
+  #status.error { color: var(--error); pointer-events: auto; }
+  #status a { color: var(--accent); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .group { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--panel); border-radius: 10px; }
+  button {
+    font: inherit; font-size: 0.9rem; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px; min-height: 40px; cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button[aria-pressed="true"] { background: #1f3a2c; border-color: var(--accent); }
+  .speed { min-width: 4.5ch; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); align-self: center; }
+  details { background: var(--panel); border-radius: 10px; padding: 10px 14px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
+  kbd { font: 0.85em ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text);
+        border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  footer { color: var(--muted); font-size: 0.85rem; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  footer a { color: var(--accent); }
+  #log { display: none; white-space: pre-wrap; font: 12px ui-monospace, monospace; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Microbiome</h1>
+  <p class="subtitle">A chamber of sediment, simulated tick by tick and drawn in 3D with the Strata engine (WebGL 2).
+    Aerobes, fermenters and cross-feeders swim, feed, divide and die over fields of nutrient, waste and
+    oxygen that they change. Nutrient seeps from below and oxygen from the top, so the species sort into bands.</p>
+
+  <div class="stage" id="stage">
+    <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()" aria-label="The micro-environment, drawn in 3D"></canvas>
+    <div id="touch" aria-hidden="true"></div>
+    <div id="status">Loading…</div>
+  </div>
+
+  <div class="toolbar" role="toolbar" aria-label="Simulation controls">
+    <div class="group" role="group" aria-label="Field shown">
+      <button type="button" data-view="0" aria-pressed="true">Mixed</button>
+      <button type="button" data-view="1" aria-pressed="false">Nutrient</button>
+      <button type="button" data-view="2" aria-pressed="false">Waste</button>
+      <button type="button" data-view="3" aria-pressed="false">Oxygen</button>
+    </div>
+    <div class="group" role="group" aria-label="Clock">
+      <button type="button" id="pause" aria-pressed="false">Pause</button>
+      <button type="button" id="slower" aria-label="Slower">−</button>
+      <span class="speed" id="speed" aria-live="polite">1×</span>
+      <button type="button" id="faster" aria-label="Faster">+</button>
+    </div>
+    <div class="group" role="group" aria-label="View">
+      <button type="button" id="hud" aria-pressed="true">Statistics</button>
+      <button type="button" id="recenter">Re-centre</button>
+      <button type="button" id="restart">New chamber</button>
+    </div>
+  </div>
+
+  <details>
+    <summary>How to play</summary>
+    <ul>
+      <li>Nothing to win: watch the community grow. The overlay counts each species and charts the population.</li>
+      <li>Mouse: drag to pan, wheel to zoom. Touch: drag with one finger to pan, pinch to zoom, twist with two fingers to rotate.</li>
+      <li>Keyboard: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows pan, <kbd>Q</kbd>/<kbd>E</kbd> rotate,
+        <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>1</kbd>–<kbd>4</kbd> field, <kbd>Space</kbd> pause,
+        <kbd>,</kbd>/<kbd>.</kbd> slower/faster, <kbd>Tab</kbd> statistics, <kbd>R</kbd> new chamber.</li>
+      <li>Each chamber is seeded: the same seed always grows the same way, on any computer.</li>
+    </ul>
+  </details>
+
+  <footer>
+    <span><a href="classic/">Classic Microbiome</a> (the original 2D grid)</span>
+    <span>Source: <a href="https://github.com/Preponderous-Software/microbiome">Preponderous-Software/microbiome</a></span>
+    <span>More by Daniel Stephenson → <a href="https://danielstephenson.dev/play">danielstephenson.dev/play</a></span>
+  </footer>
+  <pre id="log"></pre>
+</main>
+<script>
+  const statusEl = document.getElementById('status');
+  const logEl = document.getElementById('log');
+  const stage = document.getElementById('stage');
+  const canvas = document.getElementById('canvas');
+  function fail(html) {
+    statusEl.innerHTML = html + '<br><br>The <a href="classic/">classic Microbiome</a> runs without WebGL 2.';
+    statusEl.className = 'error';
+    statusEl.style.display = 'grid';
+  }
+  const params = new URLSearchParams(location.search);
+  const bench = params.get('bench');
+  const lines = [];
+  function out(text) {
+    lines.push(text);
+    if (bench) { logEl.style.display = 'block'; logEl.textContent = lines.join('\n'); }
+    console.log(text);
+  }
+
+  // SDL3 keeps the drawable at the canvas's CSS size times the device pixel
+  // ratio (and follows it when the page is resized); this is the first size.
+  const rect = stage.getBoundingClientRect();
+  const args = ['--window-width', String(Math.max(64, Math.round(rect.width))),
+                '--window-height', String(Math.max(64, Math.round(rect.height)))];
+  if (params.get('seed')) args.push('--seed', params.get('seed'));
+  if (params.get('cascades')) args.push('--cascades', params.get('cascades'));
+  if (params.get('shadow')) args.push('--shadow-map', params.get('shadow'));
+  if (bench) args.push('--bench', '--ticks', String(parseInt(bench, 10) || 2000));
+
+  const hasWebGL2 = !!document.createElement('canvas').getContext('webgl2');
+  if (!hasWebGL2) fail('This browser has no WebGL 2, which this version of Microbiome needs.');
+
+  var Module = {
+    canvas: canvas,
+    arguments: args,
+    noInitialRun: !hasWebGL2,
+    print: out,
+    printErr: (text) => console.warn(text),
+    setStatus: (text) => { if (text && statusEl.className !== 'error') statusEl.textContent = text; },
+    onRuntimeInitialized: () => {
+      if (!hasWebGL2) return;
+      statusEl.style.display = 'none';
+      window.mbReady = true;
+      canvas.focus({ preventScroll: true });
+    },
+    onAbort: (what) => fail('Microbiome stopped: ' + what),
+    // SDL3 reads hints from the environment: keys go to the canvas only, so
+    // the page's buttons and links keep their own keys.
+    preRun: [() => { ENV.SDL_EMSCRIPTEN_KEYBOARD_ELEMENT = '#canvas'; }],
+  };
+  window.mbLog = lines;
+  window.addEventListener('error', (e) => fail('Error: ' + e.message));
+
+  const call = (name, ret, types, values) => window.mbReady ? Module.ccall(name, ret, types, values) : null;
+
+  // Buttons.
+  const viewButtons = [...document.querySelectorAll('[data-view]')];
+  function setView(v) {
+    call('mb_set_view', null, ['number'], [v]);
+    viewButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === String(v))));
+  }
+  viewButtons.forEach((b) => b.addEventListener('click', () => setView(parseInt(b.dataset.view, 10))));
+  const pauseBtn = document.getElementById('pause');
+  pauseBtn.addEventListener('click', () => {
+    const paused = call('mb_toggle_pause', 'number', [], []);
+    pauseBtn.setAttribute('aria-pressed', String(!!paused));
+    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+  });
+  const speedEl = document.getElementById('speed');
+  const showSpeed = (s) => { if (s) speedEl.textContent = (s < 1 ? s : Math.round(s)) + '×'; };
+  document.getElementById('slower').addEventListener('click', () => showSpeed(call('mb_change_speed', 'number', ['number'], [-1])));
+  document.getElementById('faster').addEventListener('click', () => showSpeed(call('mb_change_speed', 'number', ['number'], [1])));
+  const hudBtn = document.getElementById('hud');
+  hudBtn.addEventListener('click', () => hudBtn.setAttribute('aria-pressed', String(!!call('mb_toggle_hud', 'number', [], []))));
+  document.getElementById('recenter').addEventListener('click', () => call('mb_reset_camera', null, [], []));
+  document.getElementById('restart').addEventListener('click', () => call('mb_new_chamber', null, [], []));
+  // Keep the buttons in step with the keys the canvas handles.
+  canvas.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    if (e.key >= '1' && e.key <= '4') viewButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === String(e.key - 1))));
+    if (e.key === 'Tab') hudBtn.setAttribute('aria-pressed', String(hudBtn.getAttribute('aria-pressed') !== 'true'));
+    if (e.key === ' ') { const p = pauseBtn.getAttribute('aria-pressed') !== 'true'; pauseBtn.setAttribute('aria-pressed', String(p)); pauseBtn.textContent = p ? 'Resume' : 'Pause'; }
+  }, true);
+
+  // Mouse and touch: one pointer pans, two pinch to zoom and twist to rotate.
+  const touch = document.getElementById('touch');
+  const pointers = new Map();
+  let pinch = null;
+  const pxPerCss = () => canvas.width / Math.max(1, canvas.getBoundingClientRect().width);
+  function twoFinger() {
+    const [a, b] = [...pointers.values()];
+    return { dist: Math.hypot(b.x - a.x, b.y - a.y), angle: Math.atan2(b.y - a.y, b.x - a.x) };
+  }
+  touch.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    touch.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    touch.classList.add('dragging');
+    pinch = pointers.size === 2 ? twoFinger() : null;
+    canvas.focus({ preventScroll: true });
+  });
+  touch.addEventListener('pointermove', (e) => {
+    const p = pointers.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (pointers.size === 1) {
+      call('mb_pan', null, ['number', 'number'], [dx * pxPerCss(), dy * pxPerCss()]);
+    } else if (pointers.size === 2 && pinch) {
+      const now = twoFinger();
+      if (now.dist > 0 && pinch.dist > 0) call('mb_zoom', null, ['number'], [pinch.dist / now.dist]);
+      let turn = (now.angle - pinch.angle) * 180 / Math.PI;
+      if (turn > 180) turn -= 360;
+      if (turn < -180) turn += 360;
+      call('mb_rotate', null, ['number'], [-turn]);
+      pinch = now;
+    }
+  });
+  function lift(e) {
+    pointers.delete(e.pointerId);
+    pinch = pointers.size === 2 ? twoFinger() : null;
+    if (pointers.size === 0) touch.classList.remove('dragging');
+  }
+  touch.addEventListener('pointerup', lift);
+  touch.addEventListener('pointercancel', lift);
+  touch.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    call('mb_zoom', null, ['number'], [e.deltaY < 0 ? 0.88 : 1 / 0.88]);
+  }, { passive: false });
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>
