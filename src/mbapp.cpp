@@ -49,17 +49,6 @@ void MicrobiomeApplication::setRecordPath(std::string recordPath) {
     this->recordPath = recordPath;
 }
 
-void MicrobiomeApplication::printResults() {
-    // print out result summaries
-    for (size_t i = 0; i < results.size(); i++) {
-        std::cout << "=== Simulation " << i << " Result ===" << std::endl;
-        std::cout << "Surviving Microorganisms: " << results[i].getSurvivingMicroorganisms() << std::endl;
-        std::cout << "Dead Microorganisms: " << results[i].getDeadMicroorganisms() << std::endl;
-        std::cout << "Total Energy: " << results[i].getEnergy() << std::endl;
-        std::cout << "Ticks elapsed: " << results[i].getTicksElapsed() << std::endl;
-    }
-}
-
 void MicrobiomeApplication::printResultAverages() {
     // print out averages of values in results
     int totalSurvivingMicroorganisms = 0;
