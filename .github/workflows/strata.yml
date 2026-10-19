@@ -84,8 +84,13 @@ jobs:
           path: mb-strata-replay.usdc
           if-no-files-found: error
 
-      - name: Bench (ticks per second, 128x128)
-        run: build-strata/mb_strata --bench --ticks 2000
+      - name: Bench (ticks per second, 128x128) and the recorded state hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          build-strata/mb_strata --bench --ticks 2000 | tee bench.log
+          # The browser build (browser.yml) must reach the same state as WebAssembly.
+          grep -q "state $(tr -d '[:space:]' < strata/test/state-seed1-2000.txt)\$" bench.log
 
       - uses: actions/upload-artifact@v4
         if: always()

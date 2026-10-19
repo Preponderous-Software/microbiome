@@ -29,11 +29,11 @@ micro-environment:
 | Rendering: window/headless surface, camera, terrain tile, instanced primitives, point lights, screenshots | Strata engine (`strata::static`, `strata.hpp`) |
 | Micro-environment rules: species, chemotaxis, feeding, excretion, biofilm attachment, fission, death | Microbiome, `strata/src/micro_environment.*` |
 | Drawing the environment (heatmap colours, organism shapes, camera rig) | Microbiome, `strata/src/scene.*`, `strata/app/main.cpp` |
-| Console app `mb_app`, live viewer `mb_webapp` (microbiome.preponderous.org), browser/arcade build (`src/browser.cpp`), `env-lib-cpp`, both test suites, Docker image | **Unchanged.** They keep the existing `Microbiome`/`Environment` simulation and the Makefile. |
+| Console app `mb_app`, live viewer `mb_webapp` (microbiome.preponderous.org), classic browser build (`src/browser.cpp`), `env-lib-cpp`, both test suites, Docker image | **Unchanged.** They keep the existing `Microbiome`/`Environment` simulation and the Makefile. |
 
-The browser build stays on the current path: Strata needs OpenGL 4.5 core and
-SDL3/EGL, which the Emscripten/WebGL build does not provide, so
-`microbiome.play.danielstephenson.dev` keeps running `src/browser.cpp`.
+Since Strata gained a WebGL 2 backend, `mb_strata` is also the arcade page
+(`microbiome.play.danielstephenson.dev`, see [In a browser](#in-a-browser));
+`src/browser.cpp` stays reachable there at `/classic/`.
 
 ## The model
 
@@ -159,10 +159,50 @@ SDL3's build dependencies builds and tests everything else exactly as before.
 `.github/workflows/strata.yml` builds and tests the Strata path on every pull
 request.
 
+## In a browser
+
+Strata draws through WebGL 2 (its OpenGL ES 3.0 device) when built with
+Emscripten, so the same `strata/` project builds the arcade page:
+
+```sh
+source /path/to/emsdk/emsdk_env.sh      # emsdk 6.0.11, as CI and Strata use
+emcmake cmake -S strata -B build-web -DCMAKE_BUILD_TYPE=Release
+cmake --build build-web -j4
+ctest --test-dir build-web --output-on-failure   # the Catch2 tests, under Node
+mkdir -p site && cp build-web/mb_strata.html site/index.html && cp build-web/mb_strata.{js,wasm} site/
+python3 -m http.server -d site 8000
+```
+
+- `strata/web/shell.html` is the page. The browser runs the frame loop: in
+  `app/main.cpp` all window state lives in one `App`, and `main()` schedules
+  `App::frame` with `emscripten_set_main_loop_arg` and returns. Natively the
+  same `App::frame` runs in a `while` loop.
+- Mouse and touch go to a layer over the canvas, which calls exported `mb_*`
+  functions (pan, zoom, rotate, field, pause, speed, overlay, new chamber):
+  one finger or the mouse drags, the wheel or a pinch zooms, a two-finger
+  twist rotates. The keys are those of the window (SDL3 reads them on the
+  canvas). Esc does nothing in a page.
+- `?seed=N` picks the seed, `?cascades=N` and `?shadow=N` lower the sun's
+  shadows (`--cascades`, `--shadow-map`) for weak GPUs, and `?bench=N` runs
+  `--bench --ticks N` and prints the state hash on the page.
+- Exceptions are wasm exceptions (`-fwasm-exceptions`), the mode Strata is
+  built with; the render smoke test (EGL) is not built.
+- Determinism holds in WebAssembly: 2,000 ticks of seed 1 reach the state in
+  `strata/test/state-seed1-2000.txt` both natively (`strata.yml`) and in
+  headless Chromium (`browser.yml`, `strata/web/smoke.cjs`), and CI fails if
+  either differs.
+- `strata/web/smoke.cjs` (Playwright 1.61.1) also checks that the chamber is
+  drawn, the clock ticks, Pause stops it, and that a drag, the wheel, a key,
+  a one-finger drag and a pinch change the picture, on a desktop and an
+  iPhone 13 profile. Headless Chromium draws with SwiftShader on the CPU, so
+  its frame rate there (a few frames per second) says nothing about a GPU.
+
 ## Known gaps
 
 - No mutation or horizontal gene transfer yet (RESEARCH.md §5); species are
   fixed at birth.
-- The browser and server builds do not show the Strata micro-environment.
+- The server build (`mb_webapp`) does not show the Strata micro-environment.
+- In a browser the drawable follows the canvas at the full device pixel
+  ratio; on a weak phone GPU `?cascades=0` is the lever.
 - The tuning is hand-picked so that all three species coexist on the default
   chamber; it is not calibrated to real organisms.
