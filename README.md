@@ -148,7 +148,7 @@ Microorganisms: 45
 Dead Microorganisms: 55
 Total Energy: 1858
 
-Ticks elapsed: 16 of 120
+Ticks elapsed: 16
 ```
 
 ## Testing
@@ -168,7 +168,7 @@ The project now uses **Catch2** as the primary testing framework, providing bett
 - `make catch2_tests` - Build the Catch2 framework tests as `./mb_tests` (recommended)
 - `make tests` - Build the legacy assert-based tests as `./tests` (for backward compatibility)
 - `make test` - Alias for `catch2_tests`
-- `./run_tests.sh` - Run both Catch2 and legacy tests
+- `./run_tests.sh` - Run both Catch2 and legacy tests; it stops at the first suite that fails to build or fails a test and exits non-zero
 - `make` - Builds both test binaries alongside the applications, so a test suite that stops compiling fails the build rather than going unnoticed
 - `ctest --test-dir build-strata` - after `make strata`: the opt-in Strata build's Catch2 tests (diffusion mass conservation, chemotaxis direction, same-seed determinism, the console app's fission/death rules), headless render smoke tests, statistics-overlay tests and replay tests (recording leaves the state hash unchanged); see [docs/STRATA.md](docs/STRATA.md)
 
