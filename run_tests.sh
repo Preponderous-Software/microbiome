@@ -1,3 +1,8 @@
+#!/bin/sh
+# Builds and runs both test suites. Stops at the first failing build or suite
+# and exits non-zero, so a Catch2 failure is not masked by a passing legacy run.
+set -e
+
 # Remove old executables
 rm -f ./tests ./mb_tests
 
@@ -10,7 +15,7 @@ make catch2_tests
 echo ""
 echo "Catch2 tests completed."
 
-# Optionally run legacy tests for comparison
-echo "Running legacy tests for comparison..."
+# Run the legacy tests, which also cover the web server's HTTP endpoints
+echo "Running legacy tests..."
 make tests
 ./tests
