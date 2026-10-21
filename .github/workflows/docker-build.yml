@@ -30,11 +30,11 @@ jobs:
       # otherwise be appended to the binary as a stray argument.
       - name: Run Catch2 test suite
         run: docker run --rm --entrypoint sh microbiome-ci -c ./mb_tests
-      # The legacy suite binds 127.0.0.1:18123 in testWebServerServesSimulationState;
-      # that is container-local, so no port needs publishing. It is the only
-      # coverage of GET /api/state (see #18).
-      - name: Run legacy test suite
-        run: docker run --rm --entrypoint sh microbiome-ci -c ./tests
+      # The web server suite binds 127.0.0.1 ports 18123-18126; they are
+      # container-local, so no port needs publishing. It is the only coverage
+      # of the HTTP endpoints (GET /api/state, the index page, GET /og.png).
+      - name: Run web server test suite
+        run: docker run --rm --entrypoint sh microbiome-ci -c ./mb_web_tests
       # Regression guard for the stale-binary defect (#33): running the suites
       # only helps if make rebuilds them first. `make -q` exits non-zero when a
       # target needs remaking, so a target that wrongly reports itself up to
@@ -43,8 +43,8 @@ jobs:
         run: |
           docker run --rm --entrypoint sh microbiome-ci -c '
             touch src/simulation.cpp
-            if make -q tests; then
-              echo "tests reported up to date after src/simulation.cpp changed" >&2
+            if make -q mb_web_tests; then
+              echo "mb_web_tests reported up to date after src/simulation.cpp changed" >&2
               exit 1
             fi
             touch src/header/microbiome.h

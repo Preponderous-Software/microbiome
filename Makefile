@@ -1,6 +1,6 @@
 MAIN_FILE = src/mbapp.cpp
-TESTS_FILE = src/tests.cpp
 CATCH2_TEST_FILE = test/test_microbiome.cpp test/test_usage_reporting.cpp test/test_usd_recording.cpp
+CATCH2_WEB_TEST_FILE = test/test_web_server.cpp
 WEBAPP_FILE = src/webapp.cpp
 PROJECT_FILES = src/microorganism.cpp src/microbiome.cpp src/appConfig.cpp src/simulation.cpp src/result.cpp src/logger.cpp src/microorganismFactory.cpp src/biomatter.cpp src/usdRecording.cpp
 WEB_FILES = src/webServer.cpp
@@ -21,23 +21,21 @@ ULFIUS_FLAGS = $(shell pkg-config --cflags --libs libulfius jansson)
 
 # The friendly target names below are aliases; the recipes are keyed on the
 # binaries they actually produce, and each names every source it is built from.
-# Without that, `make tests` would consider a `tests` binary up to date whenever
-# it was newer than src/tests.cpp alone, and re-run a stale binary after a change
-# to any other translation unit. `test` needs .PHONY for a second reason: a
+# Without that, a test binary would be considered up to date whenever it was
+# newer than its test file alone, and a stale binary re-run after a change to
+# any other translation unit. `test` needs .PHONY for a second reason: a
 # directory named test/ exists, so make would otherwise treat it as a file target.
-.PHONY: all mbapp catch2_tests test webapp web strata clean og-image-header
+.PHONY: all mbapp catch2_tests catch2_web_tests test webapp web strata clean og-image-header
 
-all: mbapp tests catch2_tests webapp
+all: mbapp catch2_tests catch2_web_tests webapp
 
 mbapp: mb_app
 
-# Legacy tests (for backward compatibility)
-# The alias and the binary share a name here, so this rule is not phony.
-tests: $(TESTS_FILE) $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(HEADERS)
-	g++ $(STD_FLAGS) $(WARNING_FLAGS) -pthread $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(TESTS_FILE) $(ULFIUS_FLAGS) -o tests
-
-# Catch2 tests (new)
+# Catch2 tests that need no Ulfius
 catch2_tests: mb_tests
+
+# Catch2 tests of the web server's HTTP endpoints; they link Ulfius like mb_webapp
+catch2_web_tests: mb_web_tests
 
 # Default test target points to catch2_tests
 test: mb_tests
@@ -49,6 +47,9 @@ mb_app: $(MAIN_FILE) $(PROJECT_FILES) $(ENVLIBCPP_FILES) $(HEADERS) version.txt
 
 mb_tests: $(CATCH2_TEST_FILE) $(PROJECT_FILES) $(ENVLIBCPP_FILES) $(HEADERS) $(CATCH2_HEADERS)
 	g++ $(STD_FLAGS) $(WARNING_FLAGS) -pthread -I test $(PROJECT_FILES) $(ENVLIBCPP_FILES) $(CATCH2_TEST_FILE) -o mb_tests
+
+mb_web_tests: $(CATCH2_WEB_TEST_FILE) $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(HEADERS) $(CATCH2_HEADERS)
+	g++ $(STD_FLAGS) $(WARNING_FLAGS) -pthread -I test $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(CATCH2_WEB_TEST_FILE) $(ULFIUS_FLAGS) -o mb_web_tests
 
 mb_webapp: $(WEBAPP_FILE) $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(HEADERS)
 	g++ $(STD_FLAGS) $(WARNING_FLAGS) -pthread $(PROJECT_FILES) $(WEB_FILES) $(ENVLIBCPP_FILES) $(WEBAPP_FILE) $(ULFIUS_FLAGS) -o mb_webapp
@@ -70,7 +71,7 @@ strata:
 
 # The viewer's link-preview card is compiled into the web server, so the
 # binary needs no files beside it. After redrawing assets/og.png, run this and
-# commit both; the legacy suite (./tests) fails if they differ.
+# commit both; the web server suite (./mb_web_tests) fails if they differ.
 og-image-header: assets/og.png
 	( echo '// Generated from assets/og.png by `make og-image-header`; do not edit.'; \
 	  echo '#ifndef OgImage_h'; echo '#define OgImage_h'; \
@@ -78,4 +79,4 @@ og-image-header: assets/og.png
 	  echo '#endif' ) > src/header/ogImage.h
 
 clean:
-	rm -f mb_app tests mb_tests mb_webapp
+	rm -f mb_app mb_tests mb_web_tests mb_webapp

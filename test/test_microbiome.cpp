@@ -755,6 +755,20 @@ TEST_CASE("Simulation stops once every microorganism is dead", "[simulation]") {
 
         REQUIRE(simulation.getTicksElapsed() == 1);
     }
+
+    // The console app's own configuration: a populated grid and no tick ceiling, so run() only
+    // returns once the population has died out.
+    SECTION("for a populated microbiome when no maximum is configured") {
+        AppConfig config;
+        config.setSimulationOutputEnabled(false);
+        Simulation simulation(&config, 0, "Test Simulation");
+        REQUIRE(simulation.getSurvivingMicroorganisms() > 0);
+
+        simulation.run();
+
+        REQUIRE(simulation.getSurvivingMicroorganisms() == 0);
+        REQUIRE(simulation.getTicksElapsed() > 0);
+    }
 }
 
 TEST_CASE("Simulation running stats report the microbiome and tick progress", "[simulation]") {

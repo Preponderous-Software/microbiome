@@ -1,10 +1,10 @@
 #!/bin/sh
-# Builds and runs both test suites. Stops at the first failing build or suite
-# and exits non-zero, so a Catch2 failure is not masked by a passing legacy run.
+# Builds and runs both Catch2 suites. Stops at the first failing build or suite
+# and exits non-zero, so a failure in the first suite is not masked by a passing second run.
 set -e
 
 # Remove old executables
-rm -f ./tests ./mb_tests
+rm -f ./mb_tests ./mb_web_tests
 
 # Compile Catch2 tests (default)
 make catch2_tests
@@ -15,7 +15,7 @@ make catch2_tests
 echo ""
 echo "Catch2 tests completed."
 
-# Run the legacy tests, which also cover the web server's HTTP endpoints
-echo "Running legacy tests..."
-make tests
-./tests
+# Run the web server's HTTP endpoint tests, which link Ulfius
+echo "Running web server tests..."
+make catch2_web_tests
+./mb_web_tests
