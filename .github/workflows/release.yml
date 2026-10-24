@@ -1,0 +1,205 @@
+# Builds the Strata micro-environment (mb_strata, strata/, docs/STRATA.md) for
+# Linux x64 and attaches the download to a GitHub release. The Strata build is
+# built and tested on Linux only (strata.yml), so no Windows or macOS download
+# is made.
+#
+#   - Publishing a release (gh release create <tag> ...) or pushing a bare
+#     version tag (0.1.0, no "v") builds it and uploads it to that release. A
+#     pushed tag with no release yet gets a pre-release created for it.
+#   - A pull request that changes this workflow, strata/CMakeLists.txt or the
+#     download's README and notices runs the same build as a dry run.
+#   - workflow_dispatch builds from the chosen branch and keeps the archive as
+#     a workflow artifact. Give it a tag to build that tag and attach the build
+#     to its existing release instead.
+#
+# The version is project(microbiome_strata VERSION ...) in
+# strata/CMakeLists.txt, and a tag must equal it. See docs/RELEASING.md.
+name: Release
+
+on:
+  release:
+    types: [published]
+  push:
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "strata/CMakeLists.txt"
+      - "strata/strata.ref"
+      - "docs/README-strata-download.txt"
+      - "docs/THIRD-PARTY-STRATA.md"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach to (empty = dry run: workflow artifacts only)"
+        required: false
+        default: ""
+
+# A release created with gh release create also pushes its tag, so both events
+# fire for one release. Keyed on the tag, the later run replaces the earlier.
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  meta:
+    name: Resolve the version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      ref: ${{ steps.resolve.outputs.ref }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Resolve tag and ref
+        id: resolve
+        env:
+          EVENT: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          case "$EVENT" in
+            release)           tag="$RELEASE_TAG" ;;
+            push)              tag="$REF_NAME" ;;
+            workflow_dispatch) tag="$INPUT_TAG" ;;
+            *)                 tag="" ;;
+          esac
+          if [ -n "$tag" ]; then
+            if ! [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Release tags are bare version numbers such as 0.1.0, not '$tag'."
+              exit 1
+            fi
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "ref=refs/tags/$tag" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.ref }}
+
+      - name: Read the project version and check it against the tag
+        id: version
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          version=$(sed -n 's/^project(microbiome_strata VERSION \([0-9.]*\).*/\1/p' strata/CMakeLists.txt)
+          if [ -z "$version" ]; then
+            echo "::error::Could not read the version from project(microbiome_strata VERSION ...) in strata/CMakeLists.txt."
+            exit 1
+          fi
+          if [ -n "$TAG" ] && [ "$version" != "$TAG" ]; then
+            echo "::error::strata/CMakeLists.txt says $version but the tag is $TAG. Bump the project version first (docs/RELEASING.md)."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building mb_strata $version (tag: ${TAG:-none, dry run})"
+
+  linux:
+    name: Linux x64 build
+    needs: meta
+    # The oldest supported runner, so the download runs on older glibc too.
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: llvmpipe
+      __EGL_VENDOR_LIBRARY_FILENAMES: /usr/share/glvnd/egl_vendor.d/50_mesa.json
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.ref }}
+
+      - name: Install SDL3 build dependencies and Mesa
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev \
+            libegl-dev libgl-dev libegl1 libegl-mesa0 libgl1-mesa-dri
+
+      - name: Build
+        run: |
+          cmake -S strata -B build-strata -DCMAKE_BUILD_TYPE=Release -DMB_STRATA_BUILD_TESTS=OFF
+          cmake --build build-strata -j4 --target mb_strata
+
+      - name: Assemble the package
+        run: |
+          dir="dist/Microbiome-$VERSION-linux-x64"
+          mkdir -p "$dir"
+          cp build-strata/mb_strata "$dir/mb_strata"
+          strip "$dir/mb_strata"
+          cp LICENSE "$dir/LICENSE.txt"
+          cp docs/THIRD-PARTY-STRATA.md "$dir/THIRD-PARTY.md"
+          cp docs/README-strata-download.txt "$dir/README.txt"
+          # Only system libraries: Strata and SDL3 are linked in; OpenGL is
+          # loaded at run time.
+          ldd "$dir/mb_strata"
+          if ldd "$dir/mb_strata" | grep -Ev 'linux-vdso|ld-linux|/lib/x86_64-linux-gnu/lib(c|m|dl|pthread|rt|stdc\+\+|gcc_s)\.so'; then
+            echo "::error::mb_strata links a library the download does not carry."
+            exit 1
+          fi
+
+      # The packaged binary, not the build output, reaches the pinned state
+      # hash (strata/test/state-seed1-2000.txt, the same check strata.yml and
+      # the browser build make) and renders a frame headless on Mesa llvmpipe.
+      - name: The packaged mb_strata reaches the pinned state and renders
+        run: |
+          cd "dist/Microbiome-$VERSION-linux-x64"
+          ./mb_strata --bench --ticks 2000 | tee "$RUNNER_TEMP/bench.log"
+          grep -q "state $(tr -d '[:space:]' < "$GITHUB_WORKSPACE/strata/test/state-seed1-2000.txt")\$" "$RUNNER_TEMP/bench.log"
+          ./mb_strata --headless --ticks 600 --screenshot "$RUNNER_TEMP/mb-strata-600.png"
+          test -s "$RUNNER_TEMP/mb-strata-600.png"
+
+      - name: Archive
+        run: |
+          cd dist
+          tar -czf "Microbiome-$VERSION-linux-x64.tar.gz" "Microbiome-$VERSION-linux-x64"
+          sha256sum "Microbiome-$VERSION-linux-x64.tar.gz" > "Microbiome-$VERSION-linux-x64.tar.gz.sha256"
+          ls -l
+
+      - name: Upload the package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Microbiome-${{ env.VERSION }}-linux-x64
+          path: |
+            dist/Microbiome-${{ env.VERSION }}-linux-x64.tar.gz
+            dist/Microbiome-${{ env.VERSION }}-linux-x64.tar.gz.sha256
+          if-no-files-found: error
+
+  attach:
+    name: Attach to the release
+    needs: [meta, linux]
+    if: needs.meta.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.meta.outputs.tag }}
+    steps:
+      - name: Download the package
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # A tag pushed on its own has no release yet; one is made as a
+      # pre-release. A release made with GITHUB_TOKEN does not start this
+      # workflow again.
+      - name: Make sure the release exists
+        run: |
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --prerelease --generate-notes --title "Microbiome $TAG"
+          fi
+
+      - name: Upload to the release
+        run: |
+          ls -l dist
+          gh release upload "$TAG" dist/* --clobber
