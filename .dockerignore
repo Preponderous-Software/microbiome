@@ -4,8 +4,8 @@
 # (and CI would run) the host's stale build instead of its own.
 mb_app
 mb_webapp
-tests
 mb_tests
+mb_web_tests
 
 # Runtime artifacts, never inputs to the build.
 log.*.txt

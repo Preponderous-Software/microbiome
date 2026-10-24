@@ -152,7 +152,7 @@ Ticks elapsed: 16
 ```
 
 ## Testing
-The project now uses **Catch2** as the primary testing framework, providing better test organization and reporting.
+The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting and replay recording) and `./mb_web_tests` (the web server's HTTP endpoints, which link Ulfius).
 
 ### How to run the tests in the dev container
 1. Install Docker
@@ -162,13 +162,13 @@ The project now uses **Catch2** as the primary testing framework, providing bett
 5. Click on the green button in the bottom left corner of the window.
 6. Select "Reopen in Container".
 7. Open a terminal in VSCode.
-8. Run the `./run_tests.sh` script or build the tests with `make catch2_tests` and run them with `./mb_tests`.
+8. Run the `./run_tests.sh` script, or build a suite with `make catch2_tests` / `make catch2_web_tests` and run it with `./mb_tests` / `./mb_web_tests`.
 
 ### Available Test Commands
-- `make catch2_tests` - Build the Catch2 framework tests as `./mb_tests` (recommended)
-- `make tests` - Build the legacy assert-based tests as `./tests` (for backward compatibility)
+- `make catch2_tests` - Build the Catch2 tests that need no Ulfius as `./mb_tests` (recommended)
+- `make catch2_web_tests` - Build the web server's Catch2 tests as `./mb_web_tests` (needs `libulfius-dev` and `pkg-config`, like `make webapp`)
 - `make test` - Alias for `catch2_tests`
-- `./run_tests.sh` - Run both Catch2 and legacy tests; it stops at the first suite that fails to build or fails a test and exits non-zero
+- `./run_tests.sh` - Run both suites; it stops at the first suite that fails to build or fails a test and exits non-zero
 - `make` - Builds both test binaries alongside the applications, so a test suite that stops compiling fails the build rather than going unnoticed
 - `ctest --test-dir build-strata` - after `make strata`: the opt-in Strata build's Catch2 tests (diffusion mass conservation, chemotaxis direction, same-seed determinism, the console app's fission/death rules), headless render smoke tests, statistics-overlay tests and replay tests (recording leaves the state hash unchanged); see [docs/STRATA.md](docs/STRATA.md)
 
@@ -176,13 +176,11 @@ CI (`.github/workflows/docker-build.yml`) builds the production image and then e
 suites inside it, so a failing assertion fails the build too, not only a failing compile.
 
 Every build target lists the sources and headers it is built from, so changing any of them
-rebuilds the affected binaries. `make tests` in particular used to consider a `tests` binary
-up to date whenever it was newer than `src/tests.cpp` alone, and could re-run a stale build
-after a change elsewhere.
+rebuilds the affected binaries rather than re-running a stale build after a change elsewhere.
 
-The two suites overlap, with one gap: the web server's HTTP tests (`GET /api/state`, the
-index page's footer link and share tags, and `GET /og.png`) currently live only in the legacy suite, because
-`make catch2_tests` deliberately links no Ulfius dependency. Run `./run_tests.sh` to cover both.
+The web server's HTTP tests (`GET /api/state`, the index page's footer link and share tags,
+and `GET /og.png`) are a suite of their own because `make catch2_tests` deliberately links no
+Ulfius dependency. Run `./run_tests.sh` to cover both.
 
 ### Catch2 Features
 - Better test reporting and failure diagnostics
@@ -221,7 +219,7 @@ Building locally (in addition to `make` and `g++`, this needs `libulfius-dev` an
 
 The page polls `GET /api/state` a few times a second for the current grid, microorganisms, and biomatter as JSON, and once the population goes extinct the server starts a new generation automatically.
 
-The page carries a description, a canonical link and Open Graph / Twitter card tags for https://microbiome.preponderous.org. Its link-preview image (`og:image`) is `assets/og.png`, a 1200×630 card served at `GET /og.png`. The PNG is compiled into the server as `src/header/ogImage.h`, so the binary needs no files beside it. After redrawing the PNG, run `make og-image-header` (needs `xxd`) and commit both. The legacy suite fails if they differ.
+The page carries a description, a canonical link and Open Graph / Twitter card tags for https://microbiome.preponderous.org. Its link-preview image (`og:image`) is `assets/og.png`, a 1200×630 card served at `GET /og.png`. The PNG is compiled into the server as `src/header/ogImage.h`, so the binary needs no files beside it. After redrawing the PNG, run `make og-image-header` (needs `xxd`) and commit both. The web server suite (`./mb_web_tests`) fails if they differ.
 
 ## Recording a replay
 `mb_app --record <path.usda>` records the first simulation's history as a time-sampled
