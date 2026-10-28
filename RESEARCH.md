@@ -109,10 +109,11 @@ population growth naturally follows a logistic curve (fast growth while
 nutrients are abundant, plateauing as they're depleted) rather than
 unbounded exponential growth or a hard organism-count cap.
 
-*In the Strata build:* space only. Fission is suppressed once a grid cell
-holds `crowdingLimit` (4) cells (contact inhibition, `strata/src/micro_environment.cpp`),
-and `maxPopulation` caps the total; reproduction is not yet bounded by local
-nutrient concentration.
+*In the Strata build:* space only. A daughter that would land in a full grid
+cell (`crowdingLimit`, 4 cells) stays in the parent's cell instead, and
+fission is suppressed when that cell is full too (contact inhibition,
+`strata/src/micro_environment.cpp`); `maxPopulation` caps the total, and
+reproduction is not yet bounded by local nutrient concentration.
 
 ### 2.4 Multi-species dynamics
 A "microbiome" is by definition a multi-species community — human/soil/gut
@@ -250,9 +251,10 @@ would let spatial structure emerge (distinct zones favoring different
 species) instead of the current spatially-homogeneous grid.
 
 *In the Strata build:* nutrient, waste and oxygen fields diffuse every tick,
-and nutrient and waste also decay. Oxygen is held at saturation along the top edge (an air
-interface) and nutrient comes from seeps below it, so the two form opposing
-gradients, as in a Winogradsky column; solid grains add physical structure.
+and nutrient and waste also decay. Oxygen is held at saturation along the
+top edge (an air interface) and nutrient comes from seeps below it, so the
+two form opposing gradients, as in a Winogradsky column; solid grains add
+physical structure.
 There is no pH or temperature.
 
 ## 7. Suggested near-term ordering
