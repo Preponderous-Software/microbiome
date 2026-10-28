@@ -1,0 +1,13 @@
+{
+  "comment": "The viewer's link-preview card (assets/og.png, compiled into src/header/ogImage.h). Rendered by community-site-kit tools/og-card; see og-card/README.md.",
+  "output": "../assets/og.png",
+  "scene": "microbiome",
+  "seed": 9,
+  "wordmark": "Preponderous Software",
+  "title": "Microbiome",
+  "subtitle": "A live simulation of a virtual microbial community",
+  "url": "microbiome.preponderous.org",
+  "accent": "#40c057",
+  "alt": "Microorganisms on a grid seen at an angle: green, blue and red cells and brown biomatter, rendered in 3D with Strata. Over it: the title Microbiome, the tagline “A live simulation of a virtual microbial community”, and the address microbiome.preponderous.org.",
+  "colors": 256
+}

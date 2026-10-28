@@ -113,10 +113,27 @@ TEST_CASE("Web server index carries share metadata for the public site", "[webse
     REQUIRE(contains(body, "<meta property=\"og:image:type\" content=\"image/png\">"));
     REQUIRE(contains(body, "<meta property=\"og:image:width\" content=\"1200\">"));
     REQUIRE(contains(body, "<meta property=\"og:image:height\" content=\"630\">"));
-    REQUIRE(contains(body, "<meta property=\"og:image:alt\" content=\"Microbiome: "));
     REQUIRE(contains(body, "<meta name=\"twitter:card\" content=\"summary_large_image\">"));
     REQUIRE(contains(body, "<meta name=\"twitter:image\" content=\"https://microbiome.preponderous.org/og.png\">"));
     REQUIRE_FALSE(contains(body, "localhost"));
+
+    // The alt text describes the picture assets/og.png shows, so it is the card
+    // spec's own "alt" (og-card/card.json, which assets/og.png is drawn from),
+    // word for word, on both tags. The spec's alt holds no '"', so the value
+    // runs from its opening quote to the next one.
+    std::ifstream specFile("og-card/card.json");
+    REQUIRE(specFile.good());
+    std::string spec((std::istreambuf_iterator<char>(specFile)), std::istreambuf_iterator<char>());
+    const std::string key = "\"alt\": \"";
+    size_t altStart = spec.find(key);
+    REQUIRE(altStart != std::string::npos);
+    altStart += key.size();
+    size_t altEnd = spec.find('"', altStart);
+    REQUIRE(altEnd != std::string::npos);
+    std::string alt = spec.substr(altStart, altEnd - altStart);
+    REQUIRE(alt.size() > 20);
+    REQUIRE(contains(body, "<meta property=\"og:image:alt\" content=\"" + alt + "\">"));
+    REQUIRE(contains(body, "<meta name=\"twitter:image:alt\" content=\"" + alt + "\">"));
 }
 
 // og:image names /og.png, so the server must answer it with the PNG. The bytes
