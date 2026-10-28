@@ -27,12 +27,12 @@ namespace {
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Microbiome: A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
+<meta property="og:image:alt" content="Microorganisms on a grid seen at an angle: green, blue and red cells and brown biomatter, rendered in 3D with Strata. Over it: the title Microbiome, the tagline “A live simulation of a virtual microbial community”, and the address microbiome.preponderous.org.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Microbiome">
 <meta name="twitter:description" content="A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
 <meta name="twitter:image" content="https://microbiome.preponderous.org/og.png">
-<meta name="twitter:image:alt" content="Microbiome: A live simulation of a virtual microbial community: microorganisms move, eat, reproduce and die on a shared grid.">
+<meta name="twitter:image:alt" content="Microorganisms on a grid seen at an angle: green, blue and red cells and brown biomatter, rendered in 3D with Strata. Over it: the title Microbiome, the tagline “A live simulation of a virtual microbial community”, and the address microbiome.preponderous.org.">
 <style>
   :root {
     color-scheme: dark;

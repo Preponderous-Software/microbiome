@@ -219,7 +219,7 @@ Building locally (in addition to `make` and `g++`, this needs `libulfius-dev` an
 
 The page polls `GET /api/state` a few times a second for the current grid, microorganisms, and biomatter as JSON, and once the population goes extinct the server starts a new generation automatically.
 
-The page carries a description, a canonical link and Open Graph / Twitter card tags for https://microbiome.preponderous.org. Its link-preview image (`og:image`) is `assets/og.png`, a 1200×630 card served at `GET /og.png`. The PNG is compiled into the server as `src/header/ogImage.h`, so the binary needs no files beside it. After redrawing the PNG, run `make og-image-header` (needs `xxd`) and commit both. The web server suite (`./mb_web_tests`) fails if they differ.
+The page carries a description, a canonical link and Open Graph / Twitter card tags for https://microbiome.preponderous.org. Its link-preview image (`og:image`) is `assets/og.png`, a 1200×630 card served at `GET /og.png`: microorganisms and biomatter on a grid in the viewer's four colours, rendered in 3D with [Strata](https://github.com/Preponderous-Software/strata), with the title over it. It is drawn from `og-card/card.json` by community-site-kit's `tools/og-card` (see `og-card/README.md`), and its alt text on the page must match that spec's `alt`. The PNG is compiled into the server as `src/header/ogImage.h`, so the binary needs no files beside it. After redrawing the PNG, run `make og-image-header` (needs `xxd`) and commit both. The web server suite (`./mb_web_tests`) fails if they differ.
 
 ## Recording a replay
 `mb_app --record <path.usda>` records the first simulation's history as a time-sampled

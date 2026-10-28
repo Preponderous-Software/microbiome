@@ -1,0 +1,46 @@
+{
+  "tool": "community-site-kit tools/og-card/og_card.py",
+  "tool_repository": "https://github.com/kingdom-community/community-site-kit",
+  "tool_commit": "c5fdb46f139db840a74f93f2d955bfc9fb5e1c50",
+  "command": "python3 tools/og-card/og_card.py <site>/og-card/card.json",
+  "renderer": {
+    "engine": "Strata",
+    "version": "0.6.0",
+    "asset": "libstrata-0.6.0-linux-x64.so",
+    "asset_sha256": "3815068f90afa67b42177359a7ea918a5de321d7f7bad8706fa5275c4906af2a",
+    "library_sha256": "3815068f90afa67b42177359a7ea918a5de321d7f7bad8706fa5275c4906af2a",
+    "binding": "strata-engine 0.6.0",
+    "gpu": "llvmpipe (LLVM 12.0.0, 256 bits) | 4.5 (Core Profile) Mesa 21.2.6"
+  },
+  "text": {
+    "pillow": "10.4.0",
+    "fonts": {
+      "DejaVuSans-Bold.ttf": "aa2ebed70cf6a389400a49feeb976c785de411f387d0cff998472590760cc2b6",
+      "DejaVuSans.ttf": "437a5ecec2ec177cba9284cbffc56055311347f3e9fe4f2b4b40323d0290a6db"
+    }
+  },
+  "python": "3.11.15",
+  "spec": {
+    "accent": "#40c057",
+    "alt": "Microorganisms on a grid seen at an angle: green, blue and red cells and brown biomatter, rendered in 3D with Strata. Over it: the title Microbiome, the tagline \u201cA live simulation of a virtual microbial community\u201d, and the address microbiome.preponderous.org.",
+    "colors": 256,
+    "credit": "Rendered with Strata",
+    "output": "../assets/og.png",
+    "scene": "microbiome",
+    "seed": 9,
+    "subtitle": "A live simulation of a virtual microbial community",
+    "sun": {
+      "azimuth": 225.0,
+      "elevation": 20.0
+    },
+    "title": "Microbiome",
+    "url": "microbiome.preponderous.org",
+    "wordmark": "Preponderous Software"
+  },
+  "output": {
+    "path": "../assets/og.png",
+    "width": 1200,
+    "height": 630,
+    "sha256": "2b07a2f635c44e092ee3d10f7f511ea10483b3d36e43904ba0a5a494b0a01636"
+  }
+}
