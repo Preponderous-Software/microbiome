@@ -10,7 +10,14 @@ design/PR.
 
 ## 1. What the simulation currently models
 
-Reading through `src/`, the present model is intentionally minimal:
+Reading through `src/`, the present model is intentionally minimal. This
+section, and the "Status" notes below, describe that simulation, which the
+console app (`mb_app`), the live viewer (`mb_webapp`) and the classic browser
+build all run. The opt-in Strata build (`mb_strata`, `strata/`, see
+[docs/STRATA.md](docs/STRATA.md)) is a separate simulation that already
+implements several of the proposals below; each section notes where it does.
+
+In `src/`:
 
 - A single, undifferentiated `Microorganism` type (`src/header/microorganism.h`)
   with two traits, `energy` and `metabolicRate`, plus derived `isDead()`.
@@ -102,6 +109,12 @@ population growth naturally follows a logistic curve (fast growth while
 nutrients are abundant, plateauing as they're depleted) rather than
 unbounded exponential growth or a hard organism-count cap.
 
+*In the Strata build:* space only. A daughter that would land in a full grid
+cell (`crowdingLimit`, 4 cells) stays in the parent's cell instead, and
+fission is suppressed when that cell is full too (contact inhibition,
+`strata/src/micro_environment.cpp`); `maxPopulation` caps the total, and
+reproduction is not yet bounded by local nutrient concentration.
+
 ### 2.4 Multi-species dynamics
 A "microbiome" is by definition a multi-species community — human/soil/gut
 microbiomes host hundreds to thousands of taxa. The current `Microorganism`
@@ -110,6 +123,11 @@ trait profiles (metabolic rate, motility, diet) enables classic ecological
 dynamics: competitive exclusion when two species share a niche too closely,
 coexistence when niches differentiate, and predator/prey-style
 Lotka-Volterra oscillations if one species preys on another (see §4).
+
+*In the Strata build:* three species with different trait profiles (aerobe,
+fermenter, cross-feeder; `kTraits` in `strata/src/micro_environment.cpp`)
+differ in swimming speed, food, yield with and without oxygen, and tolerance
+of oxygen and waste. None preys on another.
 
 ## 3. Movement and sensing
 
@@ -131,12 +149,20 @@ cell. The bias is binary (biomatter present or not) rather than proportional
 to how much nutrient a cell holds, and there is no repulsion from crowded
 cells.
 
+*In the Strata build:* a run-and-tumble walk with temporal sensing up the
+gradient of each species' food field (nutrient, or waste for the
+cross-feeder), with the same 80% `chemotaxisBiasPercent` biasing the
+direction a tumble picks.
+
 ### 3.2 Motility variation
 Not all microbes swim — many are non-motile and rely on diffusion/passive
 transport or biofilm growth instead. Giving some species zero or reduced
 movement probability (rather than assuming every organism relocates every
 tick) is both more realistic and a cheap way to differentiate species
 behaviorally without new mechanics.
+
+*In the Strata build:* each species swims at its own speed, and a cell in a
+biofilm (§4.3) does not swim at all.
 
 ## 4. Interactions between organisms
 
@@ -159,6 +185,10 @@ biomatter vs. metabolic byproducts) rather than a single fungible energy
 number, different species could be specialized consumers of different pool
 types, producing emergent food webs instead of one-shot scavenging.
 
+*In the Strata build:* the aerobe and fermenter eat the nutrient field and
+excrete part of it into a separate waste field, which is the cross-feeder's
+only food.
+
 ### 4.3 Quorum sensing and biofilms
 Many bacteria coordinate behavior based on local population density via
 diffusible signaling molecules (autoinducers) — a mechanism called quorum
@@ -169,6 +199,12 @@ neighborhood exceeds a threshold, switch organisms into a "biofilm" state
 with reduced motility, reduced individual metabolic rate (shared/matrix
 protection), and increased local survival — a meaningfully different
 emergent structure from the current mostly-random scatter.
+
+*In the Strata build:* fermenters only. A fermenter that touches a grain or
+the chamber wall, or has at least `quorumThreshold` (3) neighbours, may
+attach; an attached cell does not swim and pays half its metabolic cost
+(`attachedMetabolismFactor`), and a starving one may disperse again. The
+quorum is a direct neighbour count, not a diffusible signal.
 
 ## 5. Genetics and evolution
 
@@ -214,6 +250,13 @@ that diffuses over time and that organism survival/metabolism depends on
 would let spatial structure emerge (distinct zones favoring different
 species) instead of the current spatially-homogeneous grid.
 
+*In the Strata build:* nutrient, waste and oxygen fields diffuse every tick,
+and nutrient and waste also decay. Oxygen is held at saturation along the
+top edge (an air interface) and nutrient comes from seeps below it, so the
+two form opposing gradients, as in a Winogradsky column; solid grains add
+physical structure.
+There is no pH or temperature.
+
 ## 7. Suggested near-term ordering
 
 Not a commitment, but a sensible dependency order given the above — several
@@ -231,7 +274,8 @@ later items are much more interesting once the earlier ones exist:
    **Implemented**: movement is probabilistically biased toward adjacent
    cells containing biomatter (see `Microbiome::moveMicroorganism`).
 4. **Species differentiation** (trait profiles, then divergent metabolism) —
-   turns "a microorganism" into "a microbiome."
+   turns "a microorganism" into "a microbiome." **Implemented in the Strata
+   build only** (§2.4); `src/` still has one species.
 5. **Mutation on reproduction** — evolution falls out of 1 and 4 almost for
    free.
 6. Everything else in this document (quorum sensing, HGT, dormancy,
