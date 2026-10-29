@@ -8,6 +8,8 @@
 #include "../src/header/appConfig.h"
 #include "../src/header/webServer.h"
 
+#include <jansson.h>
+
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -91,6 +93,58 @@ TEST_CASE("Web server serves the simulation state as JSON", "[webserver]") {
     REQUIRE(contains(body, "\"gridSize\":3"));
     REQUIRE(contains(body, "\"microorganisms\""));
     REQUIRE(contains(body, "\"biomatter\""));
+}
+
+// The stats and microorganism fields the index page's render() reads from /api/state, with the
+// types it expects and values that agree with each other. The request is answered within a couple
+// of seconds, and an organism starts with more than 100 energy and spends at most 4 per 200 ms
+// tick, so nothing can have died yet: this is still the first generation, with no deaths and no
+// biomatter (so a biomatter entry's fields are not covered here).
+TEST_CASE("Web server state carries the viewer's stats and microorganism fields", "[webserver]") {
+    std::string body = bodyOf(fetchFromServer(18127, "/api/state"));
+
+    json_error_t error;
+    json_t* root = json_loads(body.c_str(), 0, &error);
+    REQUIRE(root != nullptr);
+    REQUIRE(json_is_object(root));
+
+    for (const char* key : {"generation", "tick", "gridSize", "aliveCount", "deadCount", "totalEnergy"}) {
+        INFO("field " << key);
+        REQUIRE(json_is_integer(json_object_get(root, key)));
+    }
+    REQUIRE(json_integer_value(json_object_get(root, "generation")) == 1);
+    REQUIRE(json_integer_value(json_object_get(root, "tick")) >= 0);
+    REQUIRE(json_integer_value(json_object_get(root, "gridSize")) == 3);
+    REQUIRE(json_integer_value(json_object_get(root, "deadCount")) == 0);
+
+    json_t* organisms = json_object_get(root, "microorganisms");
+    REQUIRE(json_is_array(organisms));
+    // fission may already have added daughters to the size x entityFactor = 3 initial population
+    REQUIRE(json_array_size(organisms) >= 3);
+    REQUIRE(json_integer_value(json_object_get(root, "aliveCount")) == (json_int_t) json_array_size(organisms));
+
+    json_int_t energySum = 0;
+    size_t index;
+    json_t* entry;
+    json_array_foreach(organisms, index, entry) {
+        for (const char* key : {"id", "x", "y", "energy", "timesEaten"}) {
+            INFO("microorganism " << index << " field " << key);
+            REQUIRE(json_is_integer(json_object_get(entry, key)));
+        }
+        json_int_t x = json_integer_value(json_object_get(entry, "x"));
+        json_int_t y = json_integer_value(json_object_get(entry, "y"));
+        REQUIRE((x >= 0 && x < 3));
+        REQUIRE((y >= 0 && y < 3));
+        REQUIRE(json_integer_value(json_object_get(entry, "energy")) > 0);
+        energySum += json_integer_value(json_object_get(entry, "energy"));
+    }
+
+    json_t* biomatter = json_object_get(root, "biomatter");
+    REQUIRE(json_is_array(biomatter));
+    REQUIRE(json_array_size(biomatter) == 0);
+    REQUIRE(json_integer_value(json_object_get(root, "totalEnergy")) == energySum);
+
+    json_decref(root);
 }
 
 TEST_CASE("Web server index links to the portfolio in its footer", "[webserver]") {
