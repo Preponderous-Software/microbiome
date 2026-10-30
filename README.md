@@ -151,6 +151,19 @@ Total Energy: 1858
 Ticks elapsed: 16
 ```
 
+Each cell of the grid shows what is at that location:
+
+- `o` - a living microorganism
+- `+` - a living microorganism that has foraged biomatter at least once
+- `!` - a living microorganism with less than 10 energy left (shown in place of `o` or `+`)
+- `.` - biomatter with no microorganism on it
+- blank - an empty location
+
+By default (`AppConfig`), `mb_app` runs 10 simulations one after another, each on a 10x10 grid
+starting with 100 microorganisms, as fast as possible and until every microorganism has died. The
+screen is redrawn every tick. Once all of them have finished it prints the average ticks elapsed,
+dead and surviving microorganisms and total energy across the simulations.
+
 ## Testing
 The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting and replay recording) and `./mb_web_tests` (the web server's HTTP endpoints, which link Ulfius).
 
