@@ -14,7 +14,7 @@
 # mb_strata.html (+ .js, .wasm), built on Strata's GLES 3.0 device, and the
 # Catch2 tests run under Node. See docs/STRATA.md, "In a browser".
 cmake_minimum_required(VERSION 3.24)
-project(microbiome_strata VERSION 0.1.0 LANGUAGES C CXX)
+project(microbiome_strata VERSION 0.1.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
