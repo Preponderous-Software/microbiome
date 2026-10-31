@@ -468,6 +468,35 @@ TEST_CASE("Microorganisms forage biomatter at their location", "[microbiome][bio
         REQUIRE(forager->getEnergy() == 497);
         REQUIRE(forager->getTimesEaten() == 1);
     }
+
+    SECTION("foraging takes no more than the biomatter has left") {
+        microbiome.getBiomatter()[0]->setEnergy(2);
+
+        microbiome.initiateMicroorganismMovement();
+
+        // 500 - 3 (metabolism) + 2 (all that was left, not the full metabolic rate of 3) = 499
+        REQUIRE(forager->getEnergy() == 499);
+        REQUIRE(forager->getTimesEaten() == 2);
+        // foraging emptied it, so it is purged at the end of the same tick
+        REQUIRE(microbiome.getBiomatter().empty());
+        REQUIRE(microbiome.getNumEntities() == 1);
+    }
+
+    SECTION("a microorganism that dies this tick does not forage") {
+        Biomatter* biomatter = microbiome.getBiomatter()[0];
+        int biomatterEnergyBefore = biomatter->getEnergy();
+        forager->setEnergy(3);
+
+        microbiome.initiateMicroorganismMovement();
+
+        // death is processed before foraging, so the existing biomatter is untouched and the
+        // dead organism's own biomatter joins it on the same location
+        REQUIRE(biomatter->getEnergy() == biomatterEnergyBefore);
+        REQUIRE(microbiome.getBiomatter().size() == 2);
+        REQUIRE(microbiome.getMicroorganisms().empty());
+        REQUIRE(microbiome.getNumDeadMicroorganisms() == 2);
+        REQUIRE(microbiome.getNumEntities() == 2);
+    }
 }
 
 // Movement Tests
