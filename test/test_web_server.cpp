@@ -1,7 +1,7 @@
-// Tests for WebServer's HTTP endpoints (GET /api/state, the index page and GET /og.png).
-// They link Ulfius, so they build as their own binary (`make catch2_web_tests`, ./mb_web_tests)
-// and `make catch2_tests` stays free of that dependency. Each test starts a server on its own
-// 127.0.0.1 port, fetches one path over a plain socket and stops the server before asserting.
+// Tests for WebServer: its HTTP endpoints (GET /api/state, the index page and GET /og.png), the
+// simulation loop behind them and how run() fails. They link Ulfius, so they build as their own
+// binary (`make catch2_web_tests`, ./mb_web_tests) and `make catch2_tests` stays free of that
+// dependency. Each test that starts a server gives it its own port, reached over a plain socket.
 #define CATCH_CONFIG_MAIN  // This binary's only test file, so it provides main()
 #include "lib/catch2.hpp"
 
@@ -84,6 +84,46 @@ bool contains(const std::string& text, const std::string& fragment) {
     return text.find(fragment) != std::string::npos;
 }
 
+// A server left running across several requests. The destructor stops it, so a failed REQUIRE
+// cannot destroy a joinable thread.
+class RunningServer {
+    public:
+        RunningServer(AppConfig* config, int listenPort)
+            : server(config, listenPort), serverThread(&WebServer::run, &server) {}
+
+        ~RunningServer() {
+            server.stop();
+            serverThread.join();
+        }
+
+    private:
+        WebServer server;
+        std::thread serverThread;
+};
+
+// Polls GET /api/state until accept(state) holds and returns that state, which the caller must
+// json_decref, or nullptr if it has not held after timeoutSeconds.
+template <typename Predicate>
+json_t* waitForState(int port, int timeoutSeconds, Predicate accept) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeoutSeconds);
+    while (std::chrono::steady_clock::now() < deadline) {
+        json_error_t error;
+        json_t* state = json_loads(bodyOf(httpGet(port, "/api/state")).c_str(), 0, &error);
+        if (state != nullptr) {
+            if (accept(state)) {
+                return state;
+            }
+            json_decref(state);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    return nullptr;
+}
+
+json_int_t integerField(json_t* object, const char* key) {
+    return json_integer_value(json_object_get(object, key));
+}
+
 }
 
 TEST_CASE("Web server serves the simulation state as JSON", "[webserver]") {
@@ -99,7 +139,7 @@ TEST_CASE("Web server serves the simulation state as JSON", "[webserver]") {
 // types it expects and values that agree with each other. The request is answered within a couple
 // of seconds, and an organism starts with more than 100 energy and spends at most 4 per 200 ms
 // tick, so nothing can have died yet: this is still the first generation, with no deaths and no
-// biomatter (so a biomatter entry's fields are not covered here).
+// biomatter (the next test covers a biomatter entry's fields).
 TEST_CASE("Web server state carries the viewer's stats and microorganism fields", "[webserver]") {
     std::string body = bodyOf(fetchFromServer(18127, "/api/state"));
 
@@ -145,6 +185,118 @@ TEST_CASE("Web server state carries the viewer's stats and microorganism fields"
     REQUIRE(json_integer_value(json_object_get(root, "totalEnergy")) == energySum);
 
     json_decref(root);
+}
+
+// The server ticks on its own every 200 ms, and a death has to show up in /api/state. The first
+// one can take a while: an organism starts with more than 100 energy and spends at most 4 per
+// tick, so nothing dies before about 5 seconds. A larger population than the other tests' keeps
+// that close to the minimum, since one of many is likely to start low on energy.
+TEST_CASE("Web server state shows the simulation ticking, its deaths and their biomatter", "[webserver]") {
+    AppConfig config;
+    config.setEnvironmentSize(6);
+    config.setEntityFactor(10);
+    config.setSimulationOutputEnabled(false);
+    RunningServer server(&config, 18130);
+
+    json_t* state = waitForState(18130, 60, [](json_t* candidate) {
+        return integerField(candidate, "deadCount") > 0;
+    });
+    REQUIRE(state != nullptr);
+
+    REQUIRE(integerField(state, "tick") >= 25);
+    REQUIRE(integerField(state, "generation") == 1);
+
+    json_int_t energySum = 0;
+    size_t index;
+    json_t* entry;
+    json_t* organisms = json_object_get(state, "microorganisms");
+    REQUIRE(json_is_array(organisms));
+    REQUIRE(integerField(state, "aliveCount") == (json_int_t) json_array_size(organisms));
+    json_array_foreach(organisms, index, entry) {
+        energySum += integerField(entry, "energy");
+    }
+
+    json_t* biomatter = json_object_get(state, "biomatter");
+    REQUIRE(json_is_array(biomatter));
+    REQUIRE(json_array_size(biomatter) >= 1);
+    REQUIRE((json_int_t) json_array_size(biomatter) <= integerField(state, "deadCount"));
+    json_array_foreach(biomatter, index, entry) {
+        for (const char* key : {"id", "x", "y", "energy"}) {
+            INFO("biomatter " << index << " field " << key);
+            REQUIRE(json_is_integer(json_object_get(entry, key)));
+        }
+        REQUIRE((integerField(entry, "x") >= 0 && integerField(entry, "x") < 6));
+        REQUIRE((integerField(entry, "y") >= 0 && integerField(entry, "y") < 6));
+        // what biomatterYieldPerDeath leaves, less anything already foraged; empty biomatter is purged
+        REQUIRE((integerField(entry, "energy") > 0 && integerField(entry, "energy") <= 60));
+        energySum += integerField(entry, "energy");
+    }
+    REQUIRE(integerField(state, "totalEnergy") == energySum);
+
+    json_decref(state);
+}
+
+// An empty population counts as extinct, so a server with no organisms rolls over to a new
+// generation every tick. A real extinction takes minutes at 200 ms per tick, which also leaves
+// the tick counter's reset uncovered here: with nothing alive the tick never leaves 0.
+TEST_CASE("Web server starts a new generation once the population is extinct", "[webserver]") {
+    AppConfig config;
+    config.setEnvironmentSize(3);
+    config.setEntityFactor(0);
+    config.setSimulationOutputEnabled(false);
+    RunningServer server(&config, 18129);
+
+    json_t* state = waitForState(18129, 10, [](json_t* candidate) {
+        return integerField(candidate, "generation") >= 3;
+    });
+    REQUIRE(state != nullptr);
+
+    REQUIRE(integerField(state, "aliveCount") == 0);
+    REQUIRE(integerField(state, "deadCount") == 0);
+    REQUIRE(integerField(state, "tick") == 0);
+    REQUIRE(json_array_size(json_object_get(state, "microorganisms")) == 0);
+
+    json_decref(state);
+}
+
+TEST_CASE("Web server run() fails with the port in its message when the port is invalid", "[webserver]") {
+    AppConfig config;
+    config.setEnvironmentSize(3);
+    config.setEntityFactor(1);
+
+    SECTION("port 0") {
+        WebServer server(&config, 0);
+        REQUIRE_THROWS_WITH(server.run(), "Failed to initialize web server instance on port 0");
+    }
+
+    SECTION("a port above 65535") {
+        WebServer server(&config, 70000);
+        REQUIRE_THROWS_WITH(server.run(), "Failed to initialize web server instance on port 70000");
+    }
+}
+
+// run() has already started the simulation thread when the framework fails to start, so this also
+// covers that it stops that thread again: the server is destroyed right after the throw.
+TEST_CASE("Web server run() fails with the port in its message when the port is in use", "[webserver]") {
+    int listener = socket(AF_INET, SOCK_STREAM, 0);
+    REQUIRE(listener >= 0);
+    struct sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(18128);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    REQUIRE(bind(listener, (struct sockaddr*) &addr, sizeof(addr)) == 0);
+    REQUIRE(listen(listener, 1) == 0);
+
+    AppConfig config;
+    config.setEnvironmentSize(3);
+    config.setEntityFactor(1);
+    {
+        WebServer server(&config, 18128);
+        REQUIRE_THROWS_WITH(server.run(), "Failed to start web server on port 18128");
+    }
+
+    close(listener);
 }
 
 TEST_CASE("Web server index links to the portfolio in its footer", "[webserver]") {

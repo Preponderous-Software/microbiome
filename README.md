@@ -191,9 +191,11 @@ suites inside it, so a failing assertion fails the build too, not only a failing
 Every build target lists the sources and headers it is built from, so changing any of them
 rebuilds the affected binaries rather than re-running a stale build after a change elsewhere.
 
-The web server's HTTP tests (`GET /api/state`, the index page's footer link and share tags,
-and `GET /og.png`) are a suite of their own because `make catch2_tests` deliberately links no
-Ulfius dependency. Run `./run_tests.sh` to cover both.
+The web server's tests (`GET /api/state`, the index page's footer link and share tags,
+`GET /og.png`, the new generation after an extinction and `run()` failing on an invalid or busy
+port) are a suite of their own because `make catch2_tests` deliberately links no Ulfius
+dependency. The suite takes several seconds, because it waits for a first death at the server's
+200 ms tick. Run `./run_tests.sh` to cover both.
 
 ### Catch2 Features
 - Better test reporting and failure diagnostics
