@@ -1,7 +1,7 @@
 // Tests for WebServer: its HTTP endpoints (GET /api/state, the index page and GET /og.png), the
 // simulation loop behind them and how run() fails. They link Ulfius, so they build as their own
 // binary (`make catch2_web_tests`, ./mb_web_tests) and `make catch2_tests` stays free of that
-// dependency. Each test uses its own 127.0.0.1 port and talks to the server over a plain socket.
+// dependency. Each test that starts a server gives it its own port, reached over a plain socket.
 #define CATCH_CONFIG_MAIN  // This binary's only test file, so it provides main()
 #include "lib/catch2.hpp"
 
