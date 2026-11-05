@@ -165,7 +165,7 @@ screen is redrawn every tick. Once all of them have finished it prints the avera
 dead and surviving microorganisms and total energy across the simulations.
 
 ## Testing
-The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting and replay recording) and `./mb_web_tests` (the web server's HTTP endpoints, which link Ulfius).
+The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting and replay recording) and `./mb_web_tests` (the web server's HTTP endpoints, simulation loop and startup failures, which link Ulfius).
 
 ### How to run the tests in the dev container
 1. Install Docker
@@ -229,8 +229,10 @@ With Docker Compose:
 
 Building locally (in addition to `make` and `g++`, this needs `libulfius-dev` and `pkg-config`, e.g. `apt-get install pkg-config libulfius-dev` on Debian/Ubuntu):
 1. Run `make webapp`
-2. Run `./mb_webapp` (set `MICROBIOME_WEB_PORT` to use a port other than the default 8080)
+2. Run `./mb_webapp` (set `MICROBIOME_WEB_PORT` to a number from 1 to 65535 to use a port other than the default 8080)
 3. Open http://localhost:8080 in a browser
+
+If the port is invalid or already in use, `mb_webapp` prints the reason to stderr and exits with status 1.
 
 The page polls `GET /api/state` a few times a second for the current grid, microorganisms, and biomatter as JSON, and once the population goes extinct the server starts a new generation automatically.
 

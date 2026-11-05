@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <ostream>
 #include <thread>
 
 #include "appConfig.h"
@@ -41,5 +42,19 @@ class WebServer {
         int generation = 0;
         int tickCount = 0;
 };
+
+/**
+ * Reads the port mb_webapp listens on from the value of MICROBIOME_WEB_PORT:
+ * nullptr (the variable is unset) means the default 8080. Throws
+ * std::invalid_argument quoting the value if it is not a number from 1 to 65535.
+ */
+int parseWebPort(const char* portValue);
+
+/**
+ * mb_webapp's body, apart from main() so the web server suite can link it:
+ * serves the simulation until the server stops and returns 0, or writes why it
+ * could not start to errors and returns 1.
+ */
+int runWebApp(const char* portValue, std::ostream& errors);
 
 #endif

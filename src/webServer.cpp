@@ -2,8 +2,10 @@
 #include "header/ogImage.h"
 
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 #include <jansson.h>
 extern "C" {
@@ -298,4 +300,31 @@ void WebServer::writeOgImageResponse(_u_response* response) {
     u_map_put(response->map_header, "Content-Type", "image/png");
     u_map_put(response->map_header, "Cache-Control", "public, max-age=86400");
     ulfius_set_binary_body_response(response, 200, reinterpret_cast<const char*>(og_png), og_png_len);
+}
+
+int parseWebPort(const char* portValue) {
+    if (portValue == nullptr) {
+        return 8080;
+    }
+
+    char* end;
+    long port = std::strtol(portValue, &end, 10);
+    if (end == portValue || *end != '\0' || port < 1 || port > 65535) {
+        throw std::invalid_argument(std::string("Invalid MICROBIOME_WEB_PORT \"") + portValue + "\": expected a port number from 1 to 65535");
+    }
+    return static_cast<int>(port);
+}
+
+int runWebApp(const char* portValue, std::ostream& errors) {
+    try {
+        AppConfig config;
+        config.setSimulationOutputEnabled(false);
+
+        WebServer server(&config, parseWebPort(portValue));
+        server.run();
+    } catch (const std::exception& error) {
+        errors << error.what() << std::endl;
+        return 1;
+    }
+    return 0;
 }
