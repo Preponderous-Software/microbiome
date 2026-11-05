@@ -165,7 +165,7 @@ screen is redrawn every tick. Once all of them have finished it prints the avera
 dead and surviving microorganisms and total energy across the simulations.
 
 ## Testing
-The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting and replay recording) and `./mb_web_tests` (the web server's HTTP endpoints, which link Ulfius).
+The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting and replay recording) and `./mb_web_tests` (the web server's HTTP endpoints, simulation loop and startup failures, which link Ulfius).
 
 ### How to run the tests in the dev container
 1. Install Docker
