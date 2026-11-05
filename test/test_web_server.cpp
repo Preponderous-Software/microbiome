@@ -1,7 +1,8 @@
 // Tests for WebServer: its HTTP endpoints (GET /api/state, the index page and GET /og.png), the
-// simulation loop behind them and how run() fails. They link Ulfius, so they build as their own
-// binary (`make catch2_web_tests`, ./mb_web_tests) and `make catch2_tests` stays free of that
-// dependency. Each test that starts a server gives it its own port, reached over a plain socket.
+// simulation loop behind them, how run() fails and how mb_webapp reports that. They link Ulfius,
+// so they build as their own binary (`make catch2_web_tests`, ./mb_web_tests) and `make catch2_tests`
+// stays free of that dependency. Each test that starts a server gives it its own port, reached
+// over a plain socket.
 #define CATCH_CONFIG_MAIN  // This binary's only test file, so it provides main()
 #include "lib/catch2.hpp"
 
@@ -19,6 +20,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -122,6 +124,24 @@ json_t* waitForState(int port, int timeoutSeconds, Predicate accept) {
 
 json_int_t integerField(json_t* object, const char* key) {
     return json_integer_value(json_object_get(object, key));
+}
+
+// Occupies a port so that a server cannot take it. Returns the socket, or -1 if it could not.
+int listenOn(int port) {
+    int listener = socket(AF_INET, SOCK_STREAM, 0);
+    if (listener < 0) {
+        return -1;
+    }
+    struct sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (bind(listener, (struct sockaddr*) &addr, sizeof(addr)) != 0 || listen(listener, 1) != 0) {
+        close(listener);
+        return -1;
+    }
+    return listener;
 }
 
 }
@@ -278,15 +298,8 @@ TEST_CASE("Web server run() fails with the port in its message when the port is 
 // run() has already started the simulation thread when the framework fails to start, so this also
 // covers that it stops that thread again: the server is destroyed right after the throw.
 TEST_CASE("Web server run() fails with the port in its message when the port is in use", "[webserver]") {
-    int listener = socket(AF_INET, SOCK_STREAM, 0);
+    int listener = listenOn(18128);
     REQUIRE(listener >= 0);
-    struct sockaddr_in addr;
-    std::memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(18128);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    REQUIRE(bind(listener, (struct sockaddr*) &addr, sizeof(addr)) == 0);
-    REQUIRE(listen(listener, 1) == 0);
 
     AppConfig config;
     config.setEnvironmentSize(3);
@@ -297,6 +310,42 @@ TEST_CASE("Web server run() fails with the port in its message when the port is 
     }
 
     close(listener);
+}
+
+TEST_CASE("parseWebPort defaults to 8080 and reads a port number", "[webserver]") {
+    REQUIRE(parseWebPort(nullptr) == 8080);
+    REQUIRE(parseWebPort("1") == 1);
+    REQUIRE(parseWebPort("18200") == 18200);
+    REQUIRE(parseWebPort("65535") == 65535);
+}
+
+TEST_CASE("parseWebPort rejects anything but a port number and quotes the value", "[webserver]") {
+    for (std::string value : {"abc", "", "80a", "0", "-1", "65536", "99999999999999999999"}) {
+        INFO("value \"" << value << "\"");
+        REQUIRE_THROWS_WITH(parseWebPort(value.c_str()),
+            "Invalid MICROBIOME_WEB_PORT \"" + value + "\": expected a port number from 1 to 65535");
+    }
+}
+
+// What separates mb_webapp from a crash: a startup failure is a message and a non-zero status.
+TEST_CASE("runWebApp reports a startup failure instead of throwing it", "[webserver]") {
+    std::ostringstream errors;
+
+    SECTION("an invalid port") {
+        REQUIRE(runWebApp("abc", errors) == 1);
+        REQUIRE(errors.str() == "Invalid MICROBIOME_WEB_PORT \"abc\": expected a port number from 1 to 65535\n");
+    }
+
+    SECTION("a port in use") {
+        int listener = listenOn(18131);
+        REQUIRE(listener >= 0);
+
+        int status = runWebApp("18131", errors);
+        close(listener);
+
+        REQUIRE(status == 1);
+        REQUIRE(errors.str() == "Failed to start web server on port 18131\n");
+    }
 }
 
 TEST_CASE("Web server index links to the portfolio in its footer", "[webserver]") {

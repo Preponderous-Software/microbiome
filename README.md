@@ -229,8 +229,10 @@ With Docker Compose:
 
 Building locally (in addition to `make` and `g++`, this needs `libulfius-dev` and `pkg-config`, e.g. `apt-get install pkg-config libulfius-dev` on Debian/Ubuntu):
 1. Run `make webapp`
-2. Run `./mb_webapp` (set `MICROBIOME_WEB_PORT` to use a port other than the default 8080)
+2. Run `./mb_webapp` (set `MICROBIOME_WEB_PORT` to a number from 1 to 65535 to use a port other than the default 8080)
 3. Open http://localhost:8080 in a browser
+
+If the port is invalid or already in use, `mb_webapp` prints the reason to stderr and exits with status 1.
 
 The page polls `GET /api/state` a few times a second for the current grid, microorganisms, and biomatter as JSON, and once the population goes extinct the server starts a new generation automatically.
 
