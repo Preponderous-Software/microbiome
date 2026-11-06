@@ -86,8 +86,9 @@ public:
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         address.sin_port = 0; // any free port, so parallel runs cannot collide
-        bind(listener_, reinterpret_cast<sockaddr *>(&address), sizeof address);
-        listen(listener_, 8);
+        // Unchecked, a stub that is not listening would make "nothing arrived" prove nothing.
+        REQUIRE(bind(listener_, reinterpret_cast<sockaddr *>(&address), sizeof address) == 0);
+        REQUIRE(listen(listener_, 8) == 0);
         socklen_t length = sizeof address;
         getsockname(listener_, reinterpret_cast<sockaddr *>(&address), &length);
         port_ = ntohs(address.sin_port);
