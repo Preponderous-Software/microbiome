@@ -38,7 +38,7 @@ MicroEnvironment::MicroEnvironment(const Config& config)
       nutrient_(config.width, config.height, config.initialNutrient),
       waste_(config.width, config.height, 0.0f),
       oxygen_(config.width, config.height, 0.0f) {
-    if (config.width < 7 || config.height < 7) throw std::invalid_argument("mbstrata: the environment must be at least 8x8");
+    if (config.width < 8 || config.height < 8) throw std::invalid_argument("mbstrata: the environment must be at least 8x8");
     occupancy_.assign(static_cast<size_t>(config.width) * static_cast<size_t>(config.height), 0);
     generateGrains();
     generateSources();
@@ -89,7 +89,7 @@ void MicroEnvironment::populate() {
             // Same ranges as the console Microorganism: energy in
             // (minimum, max], metabolic rate in [1, factor].
             const float energy = static_cast<float>(rng_.range(config_.minimumInitialEnergy + 1, config_.maxInitialEnergy));
-            const int rate = rng_.range(1, config_.maxMetabolicRateFactor + 4);
+            const int rate = rng_.range(1, config_.maxMetabolicRateFactor);
             spawn(static_cast<Species>(s), x, y, energy, rate);
         }
     }
@@ -111,7 +111,7 @@ Entity MicroEnvironment::spawn(Species species, float x, float y, float energy, 
     world_.add(e, body);
     Cell cell;
     cell.energy = energy;
-    cell.metabolicRate = metabolicRate;
+    cell.metabolicRate = std::max(1, metabolicRate);
     cell.species = species;
     world_.add(e, cell);
     bumpOccupancy(cellOf(x), cellOf(y), 1);
@@ -201,20 +201,20 @@ void MicroEnvironment::updateOrganisms() {
 
     world_.each<Body, Cell>([&](Entity e, Body& body, Cell& cell) {
         const SpeciesTraits& t = traitsOf(cell.species);
-        Field2D& food = nutrient_;
+        Field2D& food = t.food == Food::Nutrient ? nutrient_ : waste_;
         ++cell.ageTicks;
 
-        swim(body, t, food);
+        if (!body.attached) swim(body, t, food);
         const int cx = cellOf(body.x), cy = cellOf(body.y);
 
         // Biofilm: a fermenter that touches a surface, or is crowded by
         // neighbours (a quorum), may settle and stop swimming.
         if (!body.attached && t.attachChance > 0.0f &&
-            grains_.touchesSurface(cx, cy) &&
+            (grains_.touchesSurface(cx, cy) || neighbours(cx, cy) >= config_.quorumThreshold) &&
             rng_.chance(t.attachChance))
             body.attached = 1;
         // Dispersal: a starving biofilm cell lets go and swims off.
-        else if (body.attached && food.at(cx, cy) <= 1.0f && rng_.chance(config_.detachWhenStarving))
+        else if (body.attached && food.at(cx, cy) < 1.0f && rng_.chance(config_.detachWhenStarving))
             body.attached = 0;
 
         if (config_.metabolismEnabled) {
@@ -224,20 +224,20 @@ void MicroEnvironment::updateOrganisms() {
             if (t.oxygenTolerance >= 0.0f && o2 > t.oxygenTolerance)
                 cell.energy -= (o2 - t.oxygenTolerance) * config_.oxygenToxicity;
             const float w = waste_.at(cx, cy);
-            if (w > t.wasteTolerance)
+            if (t.wasteTolerance >= 0.0f && w > t.wasteTolerance)
                 cell.energy -= (w - t.wasteTolerance) * config_.wasteToxicity;
         }
 
-        if (config_.feedingEnabled) {
+        if (config_.feedingEnabled && cell.energy > 0.0f) {
             const float want = static_cast<float>(cell.metabolicRate) * t.uptakeMultiplier;
             const float eaten = food.take(cx, cy, want);
-            if (eaten >= 0.0f) {
+            if (eaten > 0.0f) {
                 float aerobic = 0.0f;
                 if (t.oxygenPerUnit > 0.0f) {
                     const float gotO2 = oxygen_.take(cx, cy, eaten * t.oxygenPerUnit);
                     aerobic = gotO2 / t.oxygenPerUnit;
                 }
-                cell.energy += aerobic * t.aerobicYield + eaten * t.anaerobicYield;
+                cell.energy += aerobic * t.aerobicYield + (eaten - aerobic) * t.anaerobicYield;
                 if (t.wasteFraction > 0.0f) waste_.add(cx, cy, eaten * t.wasteFraction);
                 ++cell.timesEaten;
             }
@@ -257,20 +257,20 @@ void MicroEnvironment::updateOrganisms() {
         // Binary fission, as in the console app: two daughters share the
         // parent's energy minus the cost of dividing.
         if (config_.reproductionEnabled && cell.energy >= config_.reproductionEnergyThreshold &&
-            population < static_cast<size_t>(config_.maxPopulation)) {
+            population + births.size() < static_cast<size_t>(config_.maxPopulation)) {
             const float each = (cell.energy - config_.fissionCost) / 2.0f;
             if (each <= 0.0f) return;
             float dx = 0, dy = 0;
             rng_.unitVector(dx, dy);
             float bx = body.x + dx, by = body.y + dy;
-            if (bx < 0.0f) {
+            if (!openCell(bx, by) || occupancyAt(cellOf(bx), cellOf(by)) >= config_.crowdingLimit) {
                 bx = body.x;
                 by = body.y;
                 if (occupancyAt(cx, cy) >= config_.crowdingLimit) return;  // contact inhibition
             }
             cell.energy = each;
             bumpOccupancy(cellOf(bx), cellOf(by), 1);
-            births.push_back({cell.species, bx, by, each, cell.metabolicRate, 0, cell.generation + 1});
+            births.push_back({cell.species, bx, by, each, cell.metabolicRate, body.attached, cell.generation + 1});
         }
     });
 
@@ -294,7 +294,9 @@ void MicroEnvironment::updateOrganisms() {
 
 void MicroEnvironment::updateFields() {
     if (!config_.fieldsEnabled) return;
-    for (const auto& s : sources_) nutrient_.add(s[0], s[1], config_.nutrientSourceRate * 0.9f);
+    for (const auto& s : sources_) nutrient_.add(s[0], s[1], config_.nutrientSourceRate);
+    for (int x = 0; x < config_.width; ++x)
+        if (!grains_.blocked(x, 0)) oxygen_.set(x, 0, config_.oxygenSurface);
     const int sub = std::max(1, config_.diffusionSubsteps);
     nutrient_.diffuse(config_.nutrientDiffusion, &grains_, sub);
     waste_.diffuse(config_.wasteDiffusion, &grains_, sub);
@@ -325,7 +327,7 @@ Stats MicroEnvironment::stats() const {
     s.oxygenTotal = oxygen_.total();
     world_.each<Body, Cell>([&](Entity, const Body& b, const Cell& c) {
         ++s.alive[static_cast<int>(c.species)];
-        (void)b;
+        if (b.attached) ++s.attached;
         s.organismEnergy += static_cast<double>(c.energy);
     });
     return s;
@@ -339,6 +341,7 @@ uint64_t MicroEnvironment::stateHash() const {
     h.u64(births_);
     h.u64(deaths_);
     nutrient_.hashInto(h);
+    waste_.hashInto(h);
     oxygen_.hashInto(h);
     world_.each<Body, Cell>([&](Entity e, const Body& b, const Cell& c) {
         h.u32(e.index);
