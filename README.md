@@ -183,7 +183,7 @@ The project uses **Catch2** for all of its tests, split into two suites: `./mb_t
 - `make test` - Alias for `catch2_tests`
 - `./run_tests.sh` - Run both suites; it stops at the first suite that fails to build or fails a test and exits non-zero
 - `make` - Builds both test binaries alongside the applications, so a test suite that stops compiling fails the build rather than going unnoticed
-- `ctest --test-dir build-strata` - after `make strata`: the opt-in Strata build's Catch2 tests (diffusion mass conservation, chemotaxis direction, same-seed determinism, the console app's fission/death rules), headless render smoke tests, statistics-overlay tests and replay tests (recording leaves the state hash unchanged); see [docs/STRATA.md](docs/STRATA.md)
+- `ctest --test-dir build-strata` - after `make strata`: the opt-in Strata build's Catch2 tests (diffusion mass conservation, chemotaxis direction, same-seed determinism, the console app's fission/death rules, each species' feeding and toxicity, biofilms, crowding and the population cap), headless render smoke tests, statistics-overlay tests and replay tests (recording leaves the state hash unchanged); see [docs/STRATA.md](docs/STRATA.md)
 
 CI (`.github/workflows/docker-build.yml`) builds the production image and then executes both
 suites inside it, so a failing assertion fails the build too, not only a failing compile.

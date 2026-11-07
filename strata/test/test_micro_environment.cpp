@@ -3,6 +3,8 @@
 
 #include <array>
 #include <cmath>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "micro_environment.h"
@@ -23,6 +25,33 @@ Config emptyChamber(int size = 48) {
     c.initialNutrient = 0.0f;
     c.oxygenSurface = 0.0f;
     return c;
+}
+
+// An empty chamber with every rule off; a test turns on the one it is about.
+Config stillChamber(int size = 16) {
+    Config c = emptyChamber(size);
+    c.fieldsEnabled = false;
+    c.feedingEnabled = false;
+    c.metabolismEnabled = false;
+    c.reproductionEnabled = false;
+    return c;
+}
+
+// A fermenter already in a biofilm, so it stays where it is put.
+strata::sim::Entity settle(MicroEnvironment& env, float x, float y, float energy) {
+    strata::sim::Entity e = env.spawn(Species::Fermenter, x, y, energy, 1);
+    env.world().get<Body>(e)->attached = 1;
+    return e;
+}
+
+// Fills the eight grid cells around (cx, cy) to the crowding limit.
+void crowdAround(MicroEnvironment& env, int cx, int cy) {
+    for (int dy = -1; dy <= 1; ++dy)
+        for (int dx = -1; dx <= 1; ++dx) {
+            if (dx == 0 && dy == 0) continue;
+            for (int i = 0; i < env.config().crowdingLimit; ++i)
+                settle(env, static_cast<float>(cx + dx) + 0.5f, static_cast<float>(cy + dy) + 0.5f, 100.0f);
+        }
 }
 
 }  // namespace
@@ -249,4 +278,404 @@ TEST_CASE("A default chamber stays alive and mixed for a while", "[strata][ecolo
     CHECK(s.alive[0] > 0);
     CHECK(s.alive[1] > 0);
     CHECK(s.alive[2] > 0);
+}
+
+TEST_CASE("A new chamber holds each species with the console app's trait ranges, in open cells", "[strata][setup]") {
+    Config c;
+    c.width = 64;
+    c.height = 64;
+    c.initialPerSpecies = 50;
+    MicroEnvironment env(c);
+    const Stats s = env.stats();
+    CHECK(s.alive[0] == 50);
+    CHECK(s.alive[1] == 50);
+    CHECK(s.alive[2] == 50);
+    CHECK(s.attached == 0);
+    env.world().each<Body, Cell>([&](strata::sim::Entity, const Body& body, const Cell& cell) {
+        CHECK_FALSE(env.grains().blocked(static_cast<int>(body.x), static_cast<int>(body.y)));
+        CHECK(cell.energy > 100.0f);
+        CHECK(cell.energy <= 1000.0f);
+        CHECK(cell.metabolicRate >= 1);
+        CHECK(cell.metabolicRate <= 4);
+        CHECK(cell.generation == 0);
+    });
+}
+
+TEST_CASE("A chamber smaller than 8x8 is refused, and so is an unknown species", "[strata][setup]") {
+    REQUIRE_THROWS_AS(MicroEnvironment(emptyChamber(7)), std::invalid_argument);
+    REQUIRE_THROWS_AS(traitsOf(static_cast<Species>(kSpeciesCount)), std::invalid_argument);
+}
+
+TEST_CASE("spawn moves a position in a grain along +x and clamps one outside the chamber", "[strata][setup]") {
+    SECTION("into the next open cell of the row") {
+        Config c = stillChamber(32);
+        c.grainCount = 6;
+        MicroEnvironment env(c);
+        REQUIRE(env.grains().blockedCount() > 0);
+
+        int grainX = -1, grainY = -1;
+        for (int y = 0; y < c.height && grainX < 0; ++y)
+            for (int x = 0; x < c.width && grainX < 0; ++x)
+                if (env.grains().blocked(x, y)) {
+                    grainX = x;
+                    grainY = y;
+                }
+        int openX = grainX;
+        while (env.grains().blocked(openX, grainY)) openX = (openX + 1) % c.width;
+
+        strata::sim::Entity e = env.spawn(Species::Aerobe, static_cast<float>(grainX) + 0.5f, static_cast<float>(grainY) + 0.5f, 500.0f, 1);
+        const Body* body = env.world().get<Body>(e);
+        CHECK(body->x == Approx(static_cast<float>(openX) + 0.5f));
+        CHECK(body->y == Approx(static_cast<float>(grainY) + 0.5f));
+    }
+
+    SECTION("back inside the walls, with a metabolic rate of at least 1") {
+        MicroEnvironment env(stillChamber(32));
+        strata::sim::Entity e = env.spawn(Species::Aerobe, -5.0f, 100.0f, 500.0f, 0);
+        const Body* body = env.world().get<Body>(e);
+        CHECK(body->x == 0.0f);
+        CHECK(static_cast<int>(body->y) == 31);
+        CHECK(env.world().get<Cell>(e)->metabolicRate == 1);
+    }
+}
+
+TEST_CASE("Seeps sit below the top eighth on open cells and add their rate every tick", "[strata][fields]") {
+    Config c;
+    c.initialPerSpecies = 0;
+    MicroEnvironment chamber(c);
+    REQUIRE(chamber.sources().size() == 12);
+    for (const auto& seep : chamber.sources()) {
+        CHECK(seep[0] >= 1);
+        CHECK(seep[0] <= c.width - 2);
+        CHECK(seep[1] >= c.height / 8);
+        CHECK(seep[1] <= c.height - 2);
+        CHECK_FALSE(chamber.grains().blocked(seep[0], seep[1]));
+    }
+
+    Config dry = emptyChamber(32);
+    dry.nutrientSources = c.nutrientSources;
+    dry.nutrientDecay = 0.0f;
+    MicroEnvironment env(dry);
+    env.run(3);
+    CHECK(env.nutrient().total() == Approx(3.0 * 1800.0));  // the 1,800 a tick the README quotes
+}
+
+TEST_CASE("The air interface refills the top edge and oxygen falls away below it", "[strata][fields]") {
+    Config c = emptyChamber(32);
+    c.oxygenSurface = 10.0f;
+    MicroEnvironment env(c);
+    env.oxygen().fill(0.0f);
+
+    env.step();
+    CHECK(env.oxygen().at(16, 0) > 0.0f);
+    CHECK(env.oxygen().at(16, 20) == 0.0f);  // eight substeps reach eight rows at most
+
+    env.run(60);
+    CHECK(env.oxygen().at(16, 0) > env.oxygen().at(16, 8));
+    CHECK(env.oxygen().at(16, 8) > env.oxygen().at(16, 24));
+    CHECK(env.oxygen().at(16, 24) > 0.0f);
+    CHECK(env.oxygen().maxValue() <= c.oxygenSurface);
+}
+
+TEST_CASE("An aerobe's yield depends on how much of its meal oxygen covers", "[strata][metabolism]") {
+    Config c = stillChamber();
+    c.metabolismEnabled = true;
+    c.feedingEnabled = true;
+    MicroEnvironment env(c);
+    env.nutrient().fill(10.0f);
+    const SpeciesTraits& t = traitsOf(Species::Aerobe);
+    const float meal = 2.0f * t.uptakeMultiplier;
+
+    SECTION("no oxygen: all of it at the anaerobic yield") {
+        strata::sim::Entity e = env.spawn(Species::Aerobe, 8.5f, 8.5f, 500.0f, 2);
+        env.step();
+        CHECK(env.world().get<Cell>(e)->energy == Approx(500.0f - 2.0f + meal * t.anaerobicYield));
+    }
+
+    SECTION("oxygen for half the meal: half at each yield") {
+        env.oxygen().fill(meal * 0.5f * t.oxygenPerUnit);
+        strata::sim::Entity e = env.spawn(Species::Aerobe, 8.5f, 8.5f, 500.0f, 2);
+        env.step();
+        CHECK(env.world().get<Cell>(e)->energy == Approx(500.0f - 2.0f + meal * 0.5f * (t.aerobicYield + t.anaerobicYield)));
+    }
+}
+
+TEST_CASE("A meal is capped by what the cell holds", "[strata][metabolism]") {
+    Config c = stillChamber();
+    c.metabolismEnabled = true;
+    c.feedingEnabled = true;
+    MicroEnvironment env(c);
+    const SpeciesTraits& t = traitsOf(Species::Aerobe);
+
+    SECTION("less food than it wants") {
+        env.nutrient().fill(3.0f);
+        const double before = env.nutrient().total();
+        strata::sim::Entity e = env.spawn(Species::Aerobe, 8.5f, 8.5f, 500.0f, 2);
+        env.step();
+        const Cell* cell = env.world().get<Cell>(e);
+        CHECK(cell->energy == Approx(500.0f - 2.0f + 3.0f * t.anaerobicYield));
+        CHECK(cell->timesEaten == 1);
+        CHECK(env.nutrient().total() == Approx(before - 3.0));
+    }
+
+    SECTION("no food is no meal") {
+        strata::sim::Entity e = env.spawn(Species::Aerobe, 8.5f, 8.5f, 500.0f, 2);
+        env.step();
+        const Cell* cell = env.world().get<Cell>(e);
+        CHECK(cell->energy == Approx(498.0f));
+        CHECK(cell->timesEaten == 0);
+    }
+}
+
+TEST_CASE("Each species draws only on its own fields", "[strata][metabolism]") {
+    Config c = stillChamber();
+    c.metabolismEnabled = true;
+    c.feedingEnabled = true;
+    MicroEnvironment env(c);
+    env.nutrient().fill(10.0f);
+    env.waste().fill(5.0f);
+    const double nutrientBefore = env.nutrient().total();
+    const double wasteBefore = env.waste().total();
+
+    SECTION("a cross-feeder eats waste, leaves nutrient alone and excretes nothing") {
+        const SpeciesTraits& t = traitsOf(Species::CrossFeeder);
+        strata::sim::Entity e = env.spawn(Species::CrossFeeder, 8.5f, 8.5f, 500.0f, 1);
+        env.step();
+        CHECK(env.world().get<Cell>(e)->energy == Approx(500.0f - 1.0f + t.uptakeMultiplier * t.anaerobicYield));
+        CHECK(env.nutrient().total() == Approx(nutrientBefore));
+        CHECK(env.waste().total() == Approx(wasteBefore - t.uptakeMultiplier));
+    }
+
+    SECTION("a fermenter never takes oxygen, however much is there") {
+        env.oxygen().fill(2.0f);  // below its tolerance, so this costs it nothing
+        const double oxygenBefore = env.oxygen().total();
+        const SpeciesTraits& t = traitsOf(Species::Fermenter);
+        strata::sim::Entity e = env.spawn(Species::Fermenter, 8.5f, 8.5f, 500.0f, 1);
+        env.step();
+        CHECK(env.world().get<Cell>(e)->energy == Approx(500.0f - 1.0f + t.uptakeMultiplier * t.anaerobicYield));
+        CHECK(env.oxygen().total() == Approx(oxygenBefore));
+        CHECK(env.waste().total() == Approx(wasteBefore + t.uptakeMultiplier * t.wasteFraction));
+    }
+}
+
+TEST_CASE("Waste above a species' tolerance costs it energy", "[strata][species]") {
+    Config c = stillChamber();
+    c.metabolismEnabled = true;
+    MicroEnvironment env(c);
+    const SpeciesTraits& t = traitsOf(Species::Aerobe);
+
+    SECTION("above the tolerance") {
+        env.waste().fill(t.wasteTolerance + 4.0f);
+        strata::sim::Entity e = env.spawn(Species::Aerobe, 8.5f, 8.5f, 500.0f, 1);
+        env.step();
+        CHECK(env.world().get<Cell>(e)->energy == Approx(500.0f - 1.0f - 4.0f * c.wasteToxicity));
+    }
+
+    SECTION("at the tolerance") {
+        env.waste().fill(t.wasteTolerance);
+        strata::sim::Entity e = env.spawn(Species::Aerobe, 8.5f, 8.5f, 500.0f, 1);
+        env.step();
+        CHECK(env.world().get<Cell>(e)->energy == Approx(499.0f));
+    }
+
+    SECTION("a cross-feeder has no limit") {
+        env.waste().fill(100.0f);
+        strata::sim::Entity e = env.spawn(Species::CrossFeeder, 8.5f, 8.5f, 500.0f, 1);
+        env.step();
+        CHECK(env.world().get<Cell>(e)->energy == Approx(499.0f));
+    }
+}
+
+TEST_CASE("A cell that runs out of energy dies before it can eat", "[strata][death]") {
+    Config c = stillChamber();
+    c.metabolismEnabled = true;
+    c.feedingEnabled = true;
+    MicroEnvironment env(c);
+    env.nutrient().fill(10.0f);
+    const double before = env.nutrient().total();
+    env.spawn(Species::Aerobe, 8.5f, 8.5f, 2.0f, 4);  // a meal would otherwise carry it past zero
+    env.step();
+    CHECK(env.world().size() == 0);
+    CHECK(env.nutrient().total() - before == Approx(c.biomatterYieldPerDeath));
+}
+
+TEST_CASE("A cell in a biofilm stays put and pays half its metabolic cost", "[strata][biofilm]") {
+    Config c = stillChamber();
+    c.metabolismEnabled = true;
+    c.detachWhenStarving = 0.0f;
+    MicroEnvironment env(c);
+    strata::sim::Entity settled = env.spawn(Species::Fermenter, 8.5f, 8.5f, 500.0f, 2);
+    env.world().get<Body>(settled)->attached = 1;
+    strata::sim::Entity swimmer = env.spawn(Species::Fermenter, 4.5f, 8.5f, 500.0f, 2);
+    env.run(10);
+
+    CHECK(env.world().get<Body>(settled)->x == 8.5f);
+    CHECK(env.world().get<Body>(settled)->y == 8.5f);
+    CHECK(env.world().get<Cell>(settled)->energy == Approx(500.0f - 10.0f * 2.0f * c.attachedMetabolismFactor));
+    CHECK(env.world().get<Cell>(swimmer)->energy == Approx(500.0f - 10.0f * 2.0f));
+    CHECK(env.stats().attached == 1);
+}
+
+TEST_CASE("A starving biofilm cell disperses; one with food stays", "[strata][biofilm]") {
+    Config c = stillChamber();
+    c.detachWhenStarving = 1.0f;  // every chance it gets
+    MicroEnvironment env(c);
+    strata::sim::Entity e = settle(env, 8.5f, 8.5f, 500.0f);
+
+    SECTION("food under 1") {
+        env.nutrient().fill(0.99f);
+        env.step();
+        CHECK(env.world().get<Body>(e)->attached == 0);
+    }
+
+    SECTION("food of 1 or more") {
+        env.nutrient().fill(1.0f);
+        env.run(20);
+        CHECK(env.world().get<Body>(e)->attached == 1);
+    }
+}
+
+TEST_CASE("A crowd of fermenters forms a biofilm in open water; a lone one does not", "[strata][biofilm]") {
+    Config c = stillChamber(64);
+    c.detachWhenStarving = 0.0f;
+    const int ticks = 60;  // at 0.25 cells a tick nobody can reach a wall 32 cells away
+
+    MicroEnvironment crowd(c);
+    for (int i = 0; i < 40; ++i) crowd.spawn(Species::Fermenter, 32.5f, 32.5f, 500.0f, 1);
+    crowd.run(ticks);
+    CHECK(crowd.stats().attached > 0);
+
+    MicroEnvironment lone(c);
+    lone.spawn(Species::Fermenter, 32.5f, 32.5f, 500.0f, 1);
+    lone.run(ticks);
+    CHECK(lone.stats().attached == 0);
+}
+
+TEST_CASE("Only fermenters settle, however crowded the others get", "[strata][biofilm]") {
+    MicroEnvironment env(stillChamber());
+    for (int i = 0; i < 40; ++i) {
+        env.spawn(Species::Aerobe, 8.5f, 8.5f, 500.0f, 1);
+        env.spawn(Species::CrossFeeder, 8.5f, 8.5f, 500.0f, 1);
+    }
+    env.run(100);  // long enough to reach the walls as well
+    CHECK(env.stats().attached == 0);
+}
+
+TEST_CASE("A daughter lands one cell away and inherits its parent's biofilm", "[strata][reproduction]") {
+    Config c = stillChamber();
+    c.reproductionEnabled = true;
+    c.detachWhenStarving = 0.0f;
+    MicroEnvironment env(c);
+    settle(env, 8.5f, 8.5f, 1000.0f);
+    env.step();
+    REQUIRE(env.world().size() == 2);
+
+    int daughters = 0;
+    env.world().each<Body, Cell>([&](strata::sim::Entity, const Body& body, const Cell& cell) {
+        CHECK(body.attached == 1);
+        if (cell.generation == 0) return;
+        ++daughters;
+        CHECK(cell.generation == 1);
+        CHECK(std::hypot(body.x - 8.5f, body.y - 8.5f) == Approx(1.0f));
+    });
+    CHECK(daughters == 1);
+}
+
+TEST_CASE("Crowding keeps a daughter in the parent's cell, then stops fission", "[strata][reproduction]") {
+    Config c = stillChamber();
+    c.reproductionEnabled = true;
+    c.detachWhenStarving = 0.0f;
+    MicroEnvironment env(c);
+    crowdAround(env, 8, 8);
+
+    SECTION("every neighbour is full: the daughter stays with its parent") {
+        settle(env, 8.5f, 8.5f, 1000.0f);
+        env.step();
+        REQUIRE(env.stats().births == 1);
+        int atCentre = 0;
+        env.world().each<Body>([&](strata::sim::Entity, const Body& body) {
+            if (body.x == 8.5f && body.y == 8.5f) ++atCentre;
+        });
+        CHECK(atCentre == 2);
+    }
+
+    SECTION("the parent's cell is full too: no fission, and the energy is kept") {
+        for (int i = 0; i < c.crowdingLimit - 1; ++i) settle(env, 8.5f, 8.5f, 100.0f);
+        strata::sim::Entity parent = settle(env, 8.5f, 8.5f, 1000.0f);
+        env.step();
+        CHECK(env.stats().births == 0);
+        CHECK(env.world().get<Cell>(parent)->energy == 1000.0f);
+    }
+}
+
+TEST_CASE("maxPopulation stops fission once births would pass it", "[strata][reproduction]") {
+    Config c = stillChamber();
+    c.reproductionEnabled = true;
+    c.maxPopulation = 4;
+    MicroEnvironment env(c);
+    env.spawn(Species::Aerobe, 4.5f, 4.5f, 1000.0f, 1);
+    env.spawn(Species::Aerobe, 8.5f, 8.5f, 1000.0f, 1);
+    env.spawn(Species::Aerobe, 12.5f, 12.5f, 1000.0f, 1);
+    env.run(5);
+
+    CHECK(env.world().size() == 4);
+    CHECK(env.stats().births == 1);
+    int undivided = 0;
+    env.world().each<Cell>([&](strata::sim::Entity, const Cell& cell) {
+        if (cell.energy == 1000.0f) ++undivided;
+    });
+    CHECK(undivided == 2);
+}
+
+TEST_CASE("Nothing swims or divides into a grain or out of the chamber", "[strata][setup]") {
+    Config c;
+    c.width = 48;
+    c.height = 48;
+    c.grainCount = 12;
+    c.initialPerSpecies = 60;
+    MicroEnvironment env(c);
+    for (int t = 0; t < 200; ++t) {
+        env.step();
+        env.world().each<Body>([&](strata::sim::Entity, const Body& body) {
+            REQUIRE_FALSE(env.grains().blocked(static_cast<int>(std::floor(body.x)), static_cast<int>(std::floor(body.y))));
+        });
+    }
+    CHECK(env.stats().births > 0);  // daughters were placed too
+}
+
+TEST_CASE("stats and summary count what is in the chamber", "[strata][stats]") {
+    MicroEnvironment env(stillChamber());
+    env.spawn(Species::Aerobe, 2.5f, 2.5f, 100.0f, 1);
+    env.spawn(Species::Aerobe, 4.5f, 2.5f, 200.0f, 1);
+    settle(env, 8.5f, 8.5f, 300.0f);
+    env.spawn(Species::CrossFeeder, 12.5f, 2.5f, 400.0f, 1);
+    env.nutrient().set(1, 1, 7.0f);
+    env.waste().set(1, 1, 8.0f);
+    env.oxygen().set(1, 1, 9.0f);
+
+    const Stats s = env.stats();
+    CHECK(s.population() == 4);
+    CHECK(s.alive[static_cast<int>(Species::Aerobe)] == 2);
+    CHECK(s.alive[static_cast<int>(Species::Fermenter)] == 1);
+    CHECK(s.alive[static_cast<int>(Species::CrossFeeder)] == 1);
+    CHECK(s.attached == 1);
+    CHECK(s.organismEnergy == Approx(1000.0));
+    CHECK(env.summary() == "tick 0 | aerobes 2, fermenters 1, cross-feeders 1 (biofilm 1) | nutrient 7, waste 8, oxygen 9");
+}
+
+TEST_CASE("The state hash changes with every field and every entity", "[strata][determinism]") {
+    Config c = stillChamber();
+    MicroEnvironment a(c), b(c);
+    a.spawn(Species::Aerobe, 8.5f, 8.5f, 500.0f, 1);
+    strata::sim::Entity e = b.spawn(Species::Aerobe, 8.5f, 8.5f, 500.0f, 1);
+    REQUIRE(a.stateHash() == b.stateHash());
+
+    SECTION("nutrient") { b.nutrient().set(3, 3, 0.5f); }
+    SECTION("waste") { b.waste().set(3, 3, 0.5f); }
+    SECTION("oxygen") { b.oxygen().set(3, 3, 0.5f); }
+    SECTION("a cell's energy") { b.world().get<Cell>(e)->energy = 501.0f; }
+    SECTION("a cell's position") { b.world().get<Body>(e)->x = 8.75f; }
+    SECTION("a cell's biofilm state") { b.world().get<Body>(e)->attached = 1; }
+
+    CHECK(a.stateHash() != b.stateHash());
 }
