@@ -99,7 +99,7 @@ struct Config {
     float tumbleWhenWorsening = 0.45f;
     int crowdingLimit = 4;            // most cells in one grid cell before fission is suppressed
     int quorumThreshold = 3;          // neighbours that switch a fermenter into a biofilm
-    float attachedMetabolismFactor = 0.5f;
+    float attachedMetabolismFactor = 0.75f;
     float detachWhenStarving = 0.02f; // per-tick chance a biofilm cell disperses where its food is under 1
     float oxygenToxicity = 1.5f;      // energy per tick per unit of oxygen above tolerance
     float wasteToxicity = 0.8f;       // energy per tick per unit of waste above tolerance
