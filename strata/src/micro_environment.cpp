@@ -16,7 +16,7 @@ namespace {
 
 const SpeciesTraits kTraits[kSpeciesCount] = {
     // name           speed  food            uptake aero  anaero O2/unit waste  O2tol  wasteTol attach color
-    {"aerobe",        0.60f, Food::Nutrient, 4.0f, 3.00f, 0.40f, 0.35f, 0.30f, -1.0f,  6.0f,   0.03f,  {0.15f, 0.55f, 1.00f}},
+    {"aerobe",        0.60f, Food::Nutrient, 4.0f, 3.00f, 0.40f, 0.35f, 0.30f, -1.0f,  6.0f,   0.0f,  {0.15f, 0.55f, 1.00f}},
     {"fermenter",     0.25f, Food::Nutrient, 4.0f, 0.75f, 0.75f, 0.00f, 0.60f,  2.5f, 12.0f,   0.03f, {1.00f, 0.45f, 0.08f}},
     {"cross-feeder",  0.45f, Food::Waste,    4.0f, 1.40f, 0.50f, 0.20f, 0.00f, -1.0f, -1.0f,   0.0f,  {0.85f, 0.20f, 0.75f}},
 };
