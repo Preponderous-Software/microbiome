@@ -61,9 +61,9 @@ plus any oxygen or waste toxicity, eats from its cell (taking oxygen if it
 respires) and excretes waste, dies (releasing nutrient) or divides; births
 are created after the pass. An organism does not divide while the living
 population plus the births already queued that tick is at the cap,
-`--max-population` (default 20,000). Then the fields update: seeps add nutrient, the
-air interface is reset to saturation, and each field diffuses (flux form,
-closed walls) and decays.
+`--max-population` (default 20,000). Then the fields update: seeps add
+nutrient, the air interface is reset to saturation, and each field diffuses
+(flux form, closed walls) and decays.
 
 ## Statistics overlay
 
