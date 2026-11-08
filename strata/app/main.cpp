@@ -1,7 +1,8 @@
 // mb_strata: the Microbiome micro-environment, simulated and drawn with Strata.
 //
 //   mb_strata [--seed N] [--size N | --width N --height N] [--per-species N]
-//             [--view composite|nutrient|waste|oxygen] [--zoom F] [--yaw DEG]
+//             [--max-population N]
+//             [--view composite|nutrient|waste|oxygen] [--tps N] [--zoom F] [--yaw DEG]
 //             [--no-hud] [--hud-scale N] [--cascades N] [--shadow-map N]
 //             [--headless --ticks N [--screenshot out.png] [--frames DIR --frame-every N]]
 //             [--bench --ticks N]
@@ -87,6 +88,7 @@ struct Args {
 void usage(const char* argv0) {
     std::fprintf(stderr,
                  "usage: %s [--seed N] [--size N | --width N --height N] [--per-species N]\n"
+                 "          [--max-population N]\n"
                  "          [--view composite|nutrient|waste|oxygen] [--tps N] [--zoom F] [--yaw DEG]\n"
                  "          [--no-hud] [--hud-scale N] [--cascades N] [--shadow-map N]\n"
                  "          [--headless --ticks N [--screenshot out.png] [--frames DIR --frame-every N]]\n"

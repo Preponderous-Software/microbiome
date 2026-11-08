@@ -88,7 +88,8 @@ build-strata/mb_strata --bench --ticks 2000   # ticks per second, no rendering
 
 In the window: WASD/arrows pan, Q/E rotate, mouse wheel or +/- zoom, drag to pan, 1–4 switch the field
 view, space pauses, `,`/`.` change speed, Tab shows or hides the statistics overlay, R starts a new seed.
-Options: `--seed`, `--size`, `--per-species`, `--view`, `--zoom`, `--yaw`, `--tps`, `--no-hud`,
+Options: `--seed`, `--size`, `--per-species`, `--max-population N` (fission stops at this population;
+default 20,000), `--view`, `--zoom`, `--yaw`, `--tps`, `--no-hud`,
 `--hud-scale N` (glyph size in multiples of 8 pixels; by default it follows the window height),
 `--record run.usda` (below).
 
