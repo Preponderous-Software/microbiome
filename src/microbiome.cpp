@@ -63,14 +63,18 @@ std::vector<Location*> Microbiome::getAdjacentLocations(Location& location) {
     std::vector<Location*> adjacentLocations;
     int x = location.getX();
     int y = location.getY();
+    // The grid's locations run from 0 to size - 1 on each axis. Neighbours past the edge are
+    // skipped here rather than looked up: env-lib-cpp reports a missing location by throwing a
+    // heap-allocated exception, and catching one for every edge lookup leaked it each tick.
+    const int size = getGrid()->getSize();
     int offsets[4][2] = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
     for (auto& offset : offsets) {
-        try {
-            Location& adjacent = getGrid()->getLocationByCoordinates(x + offset[0], y + offset[1]);
-            adjacentLocations.push_back(&adjacent);
-        } catch (const std::runtime_error* e) {
-            // no location at these coordinates; edge of the grid
+        const int adjacentX = x + offset[0];
+        const int adjacentY = y + offset[1];
+        if (adjacentX < 0 || adjacentY < 0 || adjacentX >= size || adjacentY >= size) {
+            continue;
         }
+        adjacentLocations.push_back(&getGrid()->getLocationByCoordinates(adjacentX, adjacentY));
     }
     return adjacentLocations;
 }
