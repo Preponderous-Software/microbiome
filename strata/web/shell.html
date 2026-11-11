@@ -18,6 +18,7 @@
     --error: #ff8a80;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { overflow-x: hidden; }
   body {
     margin: 0;
@@ -50,6 +51,16 @@
   }
   #status.error { color: var(--error); pointer-events: auto; }
   #status a { color: var(--accent); }
+  /* Survival mode: a drag steers, so the joystick shows where it started. */
+  #stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.45); pointer-events: none; z-index: 1; }
+  #stick::after { content: ""; position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px;
+    border-radius: 50%; background: rgba(255,255,255,0.55); transform: translate(var(--kx, 0px), var(--ky, 0px)); }
+  .pad { position: absolute; z-index: 2; right: max(12px, env(safe-area-inset-right, 0px)); bottom: 12px; display: flex; gap: 10px; }
+  .pad button { min-width: 76px; min-height: 56px; border-radius: 28px; font-weight: 600; background: rgba(17,26,23,0.82); touch-action: none; }
+  .pad #toxin { border-color: #4fd67a; color: #b9f5cb; }
+  .pad #dash[aria-pressed="true"] { background: #6b4a12; border-color: #ffcc55; }
+  .survive-hint { color: var(--muted); font-size: 0.85rem; align-self: center; padding: 0 6px; }
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .group { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--panel); border-radius: 10px; }
   button {
@@ -75,11 +86,17 @@
   <h1>Microbiome</h1>
   <p class="subtitle">A chamber of sediment, simulated tick by tick and drawn in 3D with the Strata engine (WebGL 2).
     Aerobes, fermenters and cross-feeders swim, feed, divide and die over fields of nutrient, waste and
-    oxygen that they change. Nutrient seeps from below and oxygen from the top, so the species sort into bands.</p>
+    oxygen that they change. Nutrient seeps from below and oxygen from the top, so the species sort into bands.
+    Or become one of them, and try to stay alive while amoebae hunt you.</p>
 
   <div class="stage" id="stage">
     <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()" aria-label="The micro-environment, drawn in 3D"></canvas>
     <div id="touch" aria-hidden="true"></div>
+    <div id="stick" hidden></div>
+    <div class="pad" id="pad" hidden>
+      <button type="button" id="dash" aria-pressed="false">Dash</button>
+      <button type="button" id="toxin">Toxin</button>
+    </div>
     <div id="status">Loading…</div>
   </div>
 
@@ -96,6 +113,13 @@
       <span class="speed" id="speed" aria-live="polite">1×</span>
       <button type="button" id="faster" aria-label="Faster">+</button>
     </div>
+    <div class="group" role="group" aria-label="Survival">
+      <span class="survive-hint" id="surviveHint">Become a</span>
+      <button type="button" data-embody="0" aria-pressed="false">Aerobe</button>
+      <button type="button" data-embody="1" aria-pressed="false">Fermenter</button>
+      <button type="button" data-embody="2" aria-pressed="false">Cross-feeder</button>
+      <button type="button" id="carryOn" hidden>Live on as a descendant</button>
+    </div>
     <div class="group" role="group" aria-label="View">
       <button type="button" id="hud" aria-pressed="true">Statistics</button>
       <button type="button" id="recenter">Re-centre</button>
@@ -106,9 +130,13 @@
   <details>
     <summary>How to play</summary>
     <ul>
-      <li>Nothing to win: watch the community grow. The overlay counts each species and charts the population.</li>
+      <li>Watch the community grow, or become one of its cells: pick a species (or press <kbd>F</kbd> for the cell in the middle of the screen) and try to stay alive.
+        Swim with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows, or drag on a phone. Hold <kbd>Shift</kbd> or Dash to sprint.
+        <kbd>Space</kbd> or Toxin fires a bacteriocin burst that stuns and hurts amoebae and rival cells nearby. <kbd>P</kbd> pauses.</li>
+      <li>Amoebae hunt you; a fed one follows your scent. Your species' limits still apply: aerobes need the oxygen near the top, fermenters are poisoned by it,
+        and thick waste near the seeps poisons all but cross-feeders. At 900 energy you divide; if you die, your descendants carry on.</li>
       <li>Mouse: drag to pan, wheel to zoom. Touch: drag with one finger to pan, pinch to zoom, twist with two fingers to rotate.</li>
-      <li>Keyboard: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows pan, <kbd>Q</kbd>/<kbd>E</kbd> rotate,
+      <li>Watching, the keyboard: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows pan, <kbd>Q</kbd>/<kbd>E</kbd> rotate,
         <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>1</kbd>–<kbd>4</kbd> field, <kbd>Space</kbd> pause,
         <kbd>,</kbd>/<kbd>.</kbd> slower/faster, <kbd>Tab</kbd> statistics, <kbd>R</kbd> new chamber.</li>
       <li>Each chamber is seeded: the same seed always grows the same way, on any computer.</li>
@@ -203,11 +231,48 @@
     if (e.repeat) return;
     if (e.key >= '1' && e.key <= '4') viewButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === String(e.key - 1))));
     if (e.key === 'Tab') hudBtn.setAttribute('aria-pressed', String(hudBtn.getAttribute('aria-pressed') !== 'true'));
-    if (e.key === ' ') { const p = pauseBtn.getAttribute('aria-pressed') !== 'true'; pauseBtn.setAttribute('aria-pressed', String(p)); pauseBtn.textContent = p ? 'Resume' : 'Pause'; }
+    if (e.key === ' ' && playerState !== 1 || e.key === 'p' || e.key === 'P') { const p = pauseBtn.getAttribute('aria-pressed') !== 'true'; pauseBtn.setAttribute('aria-pressed', String(p)); pauseBtn.textContent = p ? 'Resume' : 'Pause'; }
   }, true);
+
+  // Survival mode: species buttons, the Dash and Toxin pad, and the page
+  // following the game's state (F on the keyboard changes it too).
+  let playerState = 0;  // 0 watching, 1 embodied, 2 dead with descendants, 3 lineage gone
+  const embodyButtons = [...document.querySelectorAll('[data-embody]')];
+  const carryOn = document.getElementById('carryOn');
+  const pad = document.getElementById('pad');
+  const dashBtn = document.getElementById('dash');
+  function syncPlayer() {
+    const st = call('mb_player_state', 'number', [], []);
+    if (st === null) return;
+    playerState = st;
+    const embodiedAs = st === 1 ? call('mb_player_species', 'number', [], []) : -1;
+    pad.hidden = st !== 1;
+    carryOn.hidden = st !== 2;
+    document.getElementById('surviveHint').textContent = st === 1 ? 'You are a' : st >= 2 ? 'Or become a' : 'Become a';
+    embodyButtons.forEach((b) => b.setAttribute('aria-pressed', String(st === 1 && embodiedAs === parseInt(b.dataset.embody, 10))));
+    if (st !== 1) { call('mb_steer', null, ['number', 'number'], [0, 0]); stick.hidden = true; }
+  }
+  embodyButtons.forEach((b) => b.addEventListener('click', () => {
+    const sp = parseInt(b.dataset.embody, 10);
+    call('mb_embody', null, ['number'], [sp]);
+    pauseBtn.setAttribute('aria-pressed', 'false'); pauseBtn.textContent = 'Pause';
+    syncPlayer();
+    canvas.focus({ preventScroll: true });
+  }));
+  carryOn.addEventListener('click', () => { call('mb_embody', null, ['number'], [-1]); syncPlayer(); canvas.focus({ preventScroll: true }); });
+  document.getElementById('toxin').addEventListener('pointerdown', (e) => { e.preventDefault(); call('mb_toxin', null, [], []); });
+  const setDash = (on) => { call('mb_dash', null, ['number'], [on ? 1 : 0]); dashBtn.setAttribute('aria-pressed', String(on)); };
+  dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); dashBtn.setPointerCapture(e.pointerId); setDash(true); });
+  dashBtn.addEventListener('pointerup', () => setDash(false));
+  dashBtn.addEventListener('pointercancel', () => setDash(false));
+  setInterval(syncPlayer, 250);
+  window.mbPlayerState = () => playerState;
 
   // Mouse and touch: one pointer pans, two pinch to zoom and twist to rotate.
   const touch = document.getElementById('touch');
+  const stick = document.getElementById('stick');
+  const STICK_R = 56;  // CSS pixels for full throttle
+  let stickFrom = null;
   const pointers = new Map();
   let pinch = null;
   const pxPerCss = () => canvas.width / Math.max(1, canvas.getBoundingClientRect().width);
@@ -221,6 +286,13 @@
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     touch.classList.add('dragging');
     pinch = pointers.size === 2 ? twoFinger() : null;
+    if (playerState === 1 && pointers.size === 1) {
+      const r = stage.getBoundingClientRect();
+      stickFrom = { x: e.clientX, y: e.clientY };
+      stick.style.left = (e.clientX - r.left) + 'px'; stick.style.top = (e.clientY - r.top) + 'px';
+      stick.style.setProperty('--kx', '0px'); stick.style.setProperty('--ky', '0px');
+      stick.hidden = false;
+    } else stickFrom = null;
     canvas.focus({ preventScroll: true });
   });
   touch.addEventListener('pointermove', (e) => {
@@ -228,7 +300,13 @@
     if (!p) return;
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     p.x = e.clientX; p.y = e.clientY;
-    if (pointers.size === 1) {
+    if (pointers.size === 1 && stickFrom) {
+      let sx = e.clientX - stickFrom.x, sy = e.clientY - stickFrom.y;
+      const len = Math.hypot(sx, sy);
+      if (len > STICK_R) { sx *= STICK_R / len; sy *= STICK_R / len; }
+      stick.style.setProperty('--kx', sx + 'px'); stick.style.setProperty('--ky', sy + 'px');
+      call('mb_steer', null, ['number', 'number'], [sx / STICK_R, -sy / STICK_R]);
+    } else if (pointers.size === 1) {
       call('mb_pan', null, ['number', 'number'], [dx * pxPerCss(), dy * pxPerCss()]);
     } else if (pointers.size === 2 && pinch) {
       const now = twoFinger();
@@ -242,6 +320,7 @@
   });
   function lift(e) {
     pointers.delete(e.pointerId);
+    if (pointers.size === 0 && stickFrom) { stickFrom = null; stick.hidden = true; call('mb_steer', null, ['number', 'number'], [0, 0]); }
     pinch = pointers.size === 2 ? twoFinger() : null;
     if (pointers.size === 0) touch.classList.remove('dragging');
   }

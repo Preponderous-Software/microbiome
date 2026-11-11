@@ -199,6 +199,62 @@ python3 -m http.server -d site 8000
   iPhone 13 profile. Headless Chromium draws with SwiftShader on the CPU, so
   its frame rate there (a few frames per second) says nothing about a GPU.
 
+## Survival
+
+Survival mode puts the player inside the chamber as one microorganism:
+`strata/src/survival.cpp` (simulation) with the drawing in `scene.*`, the
+panel in `hud.*` and the controls in `app/main.cpp` and `web/shell.html`.
+
+- **Embodying.** `F` (or a species button on the page) takes control of the
+  cell nearest the middle of the screen (`MicroEnvironment::embody`). It
+  keeps its species, traits and limits, starts with at least
+  `embodyEnergy` (700), and its lineage is marked 1. `F` again lets go
+  (`release`): the cell swims on its own again.
+- **Steering.** `PlayerInput` is a direction in chamber cells, its length
+  capped at 1 as the throttle. The cell swims at its species' speed (twice
+  that while dashing, for `dashCost` energy a tick), slides along grains and
+  walls, and never settles into a biofilm. Feeding, metabolism, toxicity and
+  fission are the ordinary rules.
+- **Toxin.** A bacteriocin burst costs `toxinCost` (120) and does
+  `toxinDamage` (400) to every cell outside the player's lineage and every
+  amoeba within `toxinRadius` (4.5 cells); amoebae hit are stunned for
+  `toxinStun` ticks. It recharges in `toxinCooldown` ticks.
+- **Amoebae** (`Predator`, a plain list beside the registry) are released
+  the first time a cell is embodied: `predatorsAtStart` (3) far from the
+  player, then one per wave, the waves shrinking from `predatorWaveTicks`
+  to `predatorWaveMin`, up to `maxPredators` (8). Each tick an amoeba pays
+  upkeep and chases the nearest prey within `predatorSense` (the player
+  counts as `predatorPlayerBias` as far); a fed one (energy at or above
+  `predatorEnergy`) ignores other prey and follows the player's scent. On
+  contact it engulfs the prey, keeps `predatorGain` of its energy and rests
+  `predatorDigest` ticks. It divides at `predatorDivide` and, starved,
+  returns three deaths' worth of nutrient.
+- **Death and lineage.** A death is put down to the largest drain of that
+  tick (starved, oxygen, waste) or to an amoeba. Daughters inherit the
+  lineage; after a death `F` (`continueLineage`) embodies the descendant
+  nearest where the player died.
+- **Order in a tick:** player actions (toxin), the organism pass (the player
+  swims instead of running and tumbling), the amoebae, new waves, then the
+  fields.
+
+Determinism: nothing in survival mode runs, draws a random number or enters
+the state hash until `embody` is first called, so an unplayed chamber is the
+run it always was (`state-seed1-2000.txt` is unchanged). After that the run is
+deterministic for the same inputs on the same ticks; `test_survival.cpp`
+checks both, and each rule.
+
+`--embody aerobe|fermenter|cross-feeder` starts embodied, and `--autopilot`
+hands the cell to `autopilot()`, a simple bot (flee and burst amoebae, climb
+the food gradient, head for a seep when hungry) for headless runs:
+
+```sh
+build-strata/mb_strata --headless --ticks 900 --embody cross-feeder --autopilot --screenshot survival.png
+```
+
+The browser page adds `mb_embody`, `mb_steer`, `mb_dash`, `mb_toxin`,
+`mb_player_state`, `mb_player_species` and `mb_player_energy`; a drag on the
+canvas becomes a joystick while a cell is embodied.
+
 ## Known gaps
 
 - No mutation or horizontal gene transfer yet (RESEARCH.md §5); species are

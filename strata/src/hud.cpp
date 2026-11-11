@@ -16,6 +16,9 @@ const float kTitle[4] = {0.45f, 1.00f, 0.55f, 1.0f};
 const float kPaused[4] = {1.00f, 0.38f, 0.30f, 1.0f};
 const float kPanel[4] = {0.0f, 0.0f, 0.0f, 0.58f};
 const float kFrame[4] = {0.50f, 0.56f, 0.64f, 0.55f};
+const float kDanger[4] = {1.00f, 0.42f, 0.36f, 1.0f};
+const float kWarn[4] = {1.00f, 0.80f, 0.30f, 1.0f};
+const float kGood[4] = {0.45f, 1.00f, 0.55f, 1.0f};
 
 std::string format(const char* fmt, double v) {
     char buf[64];
@@ -171,63 +174,69 @@ void Hud::build(const MicroEnvironment& env, const StatsHistory& history, const 
     const Stats st = env.stats();
     const Config& cfg = env.config();
 
-    // ---- top left: clock, populations and chamber totals
-    const float colW = 30.0f * s;
-    float y = m + pad;
-    const float x = m + pad;
-    std::vector<std::pair<float, float>> speciesRows;
-    auto row = [&](const std::string& t, const float* c) {
-        text(x, y, t, c);
-        y += lh;
-    };
-    row("MICROBIOME on Strata", kTitle);
-    row("tick " + std::to_string(st.tick) + "  t " + format("%.1f", static_cast<double>(st.tick) / state.ticksPerSecond) +
-            " s  seed " + std::to_string(state.seed),
-        kWhite);
-    if (state.headless) {
-        row(format("%.0f ticks/s of sim time", state.ticksPerSecond), kDim);
-    } else if (state.paused) {
-        row("PAUSED  (space resumes)", kPaused);
-    } else {
-        std::string r = format("speed x%.2g", state.speed) + format("  %.4g tps", state.ticksPerSecond * state.speed);
-        if (state.measuredTicksPerSecond >= 0) r += format("  ~%.0f/s", state.measuredTicksPerSecond);
-        row(r, kWhite);
-    }
-    y += lh * 0.5f;
-    row("population " + std::to_string(st.population()) + "  biofilm " + std::to_string(st.attached), kWhite);
-    for (int i = 0; i < kSpeciesCount; ++i) {
-        const Species sp = static_cast<Species>(i);
-        float c[4];
-        speciesTextColor(sp, c);
-        speciesRows.emplace_back(x + s * 0.75f, y + s * 0.5f);
-        text(x + s * 2.0f, y, padRight(traitsOf(sp).name, 14) + padLeft(std::to_string(st.alive[i]), 6), c);
-        y += lh;
-    }
-    row("births " + std::to_string(st.births) + "  deaths " + std::to_string(st.deaths), kDim);
-    y += lh * 0.5f;
-    row(padRight("chamber totals", 15) + padLeft("sum", 8) + padLeft("/tick", 8), kDim);
+    // While a cell is embodied on a narrow screen, its own panel takes the
+    // top and the chamber's statistics step aside.
+    const bool compact = env.player().embodied && W < 64.0f * s;
     const auto& samples = history.samples();
-    const bool haveRate = samples.size() >= 2 && samples.back().tick == st.tick;
-    const char* names[StatsHistory::TotalCount] = {"nutrient", "waste", "oxygen", "cell energy"};
-    const double totals[StatsHistory::TotalCount] = {st.nutrientTotal, st.wasteTotal, st.oxygenTotal,
-                                                     st.organismEnergy};
-    for (int i = 0; i < StatsHistory::TotalCount; ++i) {
-        std::string rate = "--";
-        if (haveRate) {
-            const auto& a = samples[samples.size() - 2];
-            const auto& b = samples.back();
-            rate = signedQuantity((b.totals[i] - a.totals[i]) / static_cast<double>(b.tick - a.tick));
+
+    // ---- top left: clock, populations and chamber totals
+    if (!compact) {
+        const float colW = 30.0f * s;
+        float y = m + pad;
+        const float x = m + pad;
+        std::vector<std::pair<float, float>> speciesRows;
+        auto row = [&](const std::string& t, const float* c) {
+            text(x, y, t, c);
+            y += lh;
+        };
+        row("MICROBIOME on Strata", kTitle);
+        row("tick " + std::to_string(st.tick) + "  t " + format("%.1f", static_cast<double>(st.tick) / state.ticksPerSecond) +
+                " s  seed " + std::to_string(state.seed),
+            kWhite);
+        if (state.headless) {
+            row(format("%.0f ticks/s of sim time", state.ticksPerSecond), kDim);
+        } else if (state.paused) {
+            row("PAUSED  (space resumes)", kPaused);
+        } else {
+            std::string r = format("speed x%.2g", state.speed) + format("  %.4g tps", state.ticksPerSecond * state.speed);
+            if (state.measuredTicksPerSecond >= 0) r += format("  ~%.0f/s", state.measuredTicksPerSecond);
+            row(r, kWhite);
         }
-        row(padRight(names[i], 15) + padLeft(quantity(totals[i]), 8) + padLeft(rate, 8), kWhite);
-    }
-    row("seeps add " + format("%g", static_cast<double>(cfg.nutrientSources) * cfg.nutrientSourceRate) + " nutrient/tick",
-        kDim);
-    const float panelBottom = y + pad - (lh - s);
-    fillRect(m, m, m + colW + 2 * pad, panelBottom, kPanel);
-    for (int i = 0; i < kSpeciesCount; ++i) {
-        const SpeciesTraits& t = traitsOf(static_cast<Species>(i));
-        const float c[4] = {t.color[0], t.color[1], t.color[2], 1.0f};
-        disc(speciesRows[i].first, speciesRows[i].second, s * 0.9f, c);
+        y += lh * 0.5f;
+        row("population " + std::to_string(st.population()) + "  biofilm " + std::to_string(st.attached), kWhite);
+        for (int i = 0; i < kSpeciesCount; ++i) {
+            const Species sp = static_cast<Species>(i);
+            float c[4];
+            speciesTextColor(sp, c);
+            speciesRows.emplace_back(x + s * 0.75f, y + s * 0.5f);
+            text(x + s * 2.0f, y, padRight(traitsOf(sp).name, 14) + padLeft(std::to_string(st.alive[i]), 6), c);
+            y += lh;
+        }
+        row("births " + std::to_string(st.births) + "  deaths " + std::to_string(st.deaths), kDim);
+        y += lh * 0.5f;
+        row(padRight("chamber totals", 15) + padLeft("sum", 8) + padLeft("/tick", 8), kDim);
+        const bool haveRate = samples.size() >= 2 && samples.back().tick == st.tick;
+        const char* names[StatsHistory::TotalCount] = {"nutrient", "waste", "oxygen", "cell energy"};
+        const double totals[StatsHistory::TotalCount] = {st.nutrientTotal, st.wasteTotal, st.oxygenTotal,
+                                                         st.organismEnergy};
+        for (int i = 0; i < StatsHistory::TotalCount; ++i) {
+            std::string rate = "--";
+            if (haveRate) {
+                const auto& a = samples[samples.size() - 2];
+                const auto& b = samples.back();
+                rate = signedQuantity((b.totals[i] - a.totals[i]) / static_cast<double>(b.tick - a.tick));
+            }
+            row(padRight(names[i], 15) + padLeft(quantity(totals[i]), 8) + padLeft(rate, 8), kWhite);
+        }
+        row("seeps add " + format("%g", static_cast<double>(cfg.nutrientSources) * cfg.nutrientSourceRate) + " nutrient/tick",
+            kDim);
+        const float panelBottom = y + pad - (lh - s);
+        fillRect(m, m, m + colW + 2 * pad, panelBottom, kPanel);
+        for (int i = 0; i < kSpeciesCount; ++i) {
+            const SpeciesTraits& t = traitsOf(static_cast<Species>(i));
+            const float c[4] = {t.color[0], t.color[1], t.color[2], 1.0f};
+            disc(speciesRows[i].first, speciesRows[i].second, s * 0.9f, c);
+        }
     }
 
     // ---- bottom left: what the colours mean
@@ -321,10 +330,12 @@ void Hud::build(const MicroEnvironment& env, const StatsHistory& history, const 
     }
 
     // ---- top right: keys (window only)
+    const Player& pl = env.player();
     if (!state.headless) {
-        const std::string keys = "Tab HUD  H help";
-        text(W - m - static_cast<float>(keys.size()) * s, m, keys, kDim);
+        const std::string keys = pl.embodied ? "Tab HUD  F leave" : "F become a cell  Tab HUD  H help";
+        text(W - m - static_cast<float>(keys.size()) * s, m, keys, pl.embodied ? kDim : kTitle);
     }
+    if (pl.started) survival(env, state, W, H);
 
     // Strings are final now, so their c_str() pointers stay valid.
     texts_.reserve(pending_.size());
@@ -339,6 +350,106 @@ void Hud::build(const MicroEnvironment& env, const StatsHistory& history, const 
         texts_.push_back(t);
     }
     projector_ = nullptr;
+}
+
+void Hud::survival(const MicroEnvironment& env, const HudState& state, float W, float H) {
+    const Player& pl = env.player();
+    const Config& cfg = env.config();
+    const float s = s_;
+    const float lh = std::round(s * 1.25f);
+    const float m = s;
+    const float pad = std::round(s * 0.5f);
+    const double tps = state.ticksPerSecond;
+    const int lineage = env.lineageAlive();
+    float c[4];
+    speciesTextColor(pl.species, c);
+
+    if (pl.embodied) {
+        // ---- top right, under the keys: the embodied cell's vital signs.
+        const float panelW = 32.0f * s;
+        const float x0 = W - m - panelW - 2 * pad, x = x0 + pad;
+        float y = m + lh + pad;
+        const float top = y - pad;
+        std::vector<std::pair<const float*, std::string>> rows;
+        text(x, y, std::string("YOU: ") + traitsOf(pl.species).name, c);
+        const std::string alive = format("alive %.1f s", static_cast<double>(env.playerAgeTicks()) / tps);
+        text(x + panelW - static_cast<float>(alive.size()) * s, y, alive, kWhite);
+        y += lh;
+        // Energy bar: empty is death, the tick mark is where it divides.
+        const float barX0 = x, barX1 = x + panelW, barY0 = y, barY1 = y + s;
+        const float full = cfg.reproductionEnergyThreshold;
+        const float frac = std::min(std::max(pl.energy / full, 0.0f), 1.0f);
+        const float* barColor = frac < 0.2f ? kDanger : frac < 0.45f ? kWarn : kGood;
+        fillRect(barX0, barY0, barX1, barY1, kPanel);
+        fillRect(barX0, barY0, barX0 + (barX1 - barX0) * frac, barY1, barColor);
+        line(barX0, barY0 - 0.5f, barX1, barY0 - 0.5f, kFrame, kFrame);
+        line(barX0, barY1 + 0.5f, barX1, barY1 + 0.5f, kFrame, kFrame);
+        y += s + pad;
+        text(x, y, format("energy %.0f", static_cast<double>(pl.energy)) + format(" / divide at %.0f", full), kDim);
+        y += lh;
+        // What is hurting it right now, worst first.
+        float nearest = 1e9f;
+        for (const Predator& p : env.predators()) {
+            const float dx = p.x - pl.lastX, dy = p.y - pl.lastY;
+            nearest = std::min(nearest, std::sqrt(dx * dx + dy * dy));
+        }
+        if (nearest < cfg.predatorSense) {
+            text(x, y, format("AMOEBA %.0f cells away!", static_cast<double>(nearest)), kDanger);
+            y += lh;
+        }
+        if (pl.oxygenDrain > 0.0f) {
+            text(x, y, format("OXYGEN BURNS -%.1f/tick: go deeper", static_cast<double>(pl.oxygenDrain)), kDanger);
+            y += lh;
+        }
+        if (pl.wasteDrain > 0.0f) {
+            text(x, y, format("WASTE BURNS -%.1f/tick: move on", static_cast<double>(pl.wasteDrain)), kDanger);
+            y += lh;
+        }
+        if (pl.energy < full * 0.2f) {
+            text(x, y, traitsOf(pl.species).food == Food::Waste ? "STARVING: find waste" : "STARVING: find nutrient",
+                 kWarn);
+            y += lh;
+        } else if (pl.meal > 0.0f) {
+            text(x, y, format("feeding +%.1f/tick", static_cast<double>(pl.meal)), kGood);
+            y += lh;
+        }
+        text(x, y, pl.toxinReady == 0 ? "toxin READY (space)" : format("toxin in %.1f s", pl.toxinReady / tps),
+             pl.toxinReady == 0 ? kGood : kDim);
+        text(x + 22.0f * s, y, pl.dashing ? "DASHING" : "shift dash", pl.dashing ? kWarn : kDim);
+        y += lh;
+        text(x, y, "amoebae " + std::to_string(env.predators().size()) + "  killed " + std::to_string(pl.amoebaeKilled) +
+                       "  rivals " + std::to_string(pl.rivalsKilled),
+             kWhite);
+        y += lh;
+        text(x, y, "divisions " + std::to_string(pl.divisions) + "  lineage " + std::to_string(lineage) + " alive", kWhite);
+        y += lh;
+        fillRect(x0, top, W - m, y - (lh - s) + pad, kPanel);
+        return;
+    }
+
+    if (pl.cause == DeathCause::None) return;  // left the body on purpose
+    // ---- centre: how the last life ended and what to do next.
+    const float big = s * 2.0f;
+    const std::string head = std::string("YOU WERE ") + deathCauseText(pl.cause);
+    std::string upper;
+    for (char ch : head) upper += static_cast<char>(ch >= 'a' && ch <= 'z' ? ch - 32 : ch);
+    const std::string lived =
+        format("survived %.1f s", static_cast<double>(pl.diedTick - pl.sinceTick) / tps) +
+        format(" (best %.1f s)", static_cast<double>(pl.bestTicks) / tps) + "  divisions " + std::to_string(pl.divisions) +
+        "  amoebae killed " + std::to_string(pl.amoebaeKilled);
+    const std::string next = lineage > 0 ? "F: live on as one of your " + std::to_string(lineage) + " descendants"
+                                         : "Your lineage is gone. F: embody another cell, R: new chamber";
+    const float wHead = static_cast<float>(upper.size()) * big;
+    const float wBody = static_cast<float>(std::max(lived.size(), next.size())) * s;
+    const float boxW = std::min(W - 2 * m, std::max(wHead, wBody) + 4 * pad);
+    const float boxH = big + 2 * lh + 4 * pad;
+    const float bx = (W - boxW) * 0.5f, by = H * 0.5f - boxH * 0.5f;
+    fillRect(bx, by, bx + boxW, by + boxH, kPanel);
+    fillRect(bx, by, bx + boxW, by + boxH, kPanel);  // twice: nearly opaque over the stats behind it
+    text((W - wHead) * 0.5f, by + 2 * pad, upper, kDanger, big);
+    text((W - static_cast<float>(lived.size()) * s) * 0.5f, by + 2 * pad + big + pad, lived, kWhite);
+    text((W - static_cast<float>(next.size()) * s) * 0.5f, by + 2 * pad + big + pad + lh, next,
+         lineage > 0 ? kGood : kWarn);
 }
 
 void Hud::submit(strata::Engine& engine) const {

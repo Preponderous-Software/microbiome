@@ -103,6 +103,31 @@ struct Config {
     float detachWhenStarving = 0.02f; // per-tick chance a biofilm cell disperses where its food is under 1
     float oxygenToxicity = 1.5f;      // energy per tick per unit of oxygen above tolerance
     float wasteToxicity = 0.8f;       // energy per tick per unit of waste above tolerance
+
+    // Survival mode (docs/STRATA.md, "Survival"): only once someone embodies
+    // a cell. Until then none of this is used and a run is unchanged.
+    int predatorsAtStart = 3;         // amoebae released when survival starts
+    int maxPredators = 8;
+    float predatorSpeed = 0.40f;      // cells per tick: aerobes outrun them, fermenters must dash or fight
+    float predatorSense = 12.0f;      // how far an amoeba notices prey
+    float predatorPlayerBias = 0.5f;  // the embodied cell counts as this much nearer (it smells richer)
+    float predatorReach = 1.1f;       // engulfs prey this close
+    float predatorEnergy = 600.0f;
+    float predatorUpkeep = 1.5f;      // energy per tick
+    float predatorGain = 0.35f;       // share of the prey's energy an amoeba keeps
+    int predatorDigest = 30;          // ticks an amoeba sits still digesting each meal
+    float predatorDivide = 2000.0f;   // divides in two at this energy
+    int predatorWaveTicks = 600;      // a new amoeba drifts in this often at first...
+    int predatorWaveMin = 200;        // ...shrinking by predatorWaveStep per wave down to this
+    int predatorWaveStep = 40;
+    float dashMultiplier = 2.0f;      // speed while dashing (flagellar sprint)
+    float dashCost = 2.0f;            // energy per tick of dashing
+    float embodyEnergy = 700.0f;      // an embodied cell starts with at least this much
+    float toxinCost = 120.0f;         // a burst of bacteriocin
+    float toxinRadius = 4.5f;
+    float toxinDamage = 400.0f;       // to every cell outside your lineage and every amoeba in range
+    int toxinCooldown = 60;           // ticks
+    int toxinStun = 45;               // ticks an amoeba hit by toxin stops moving
 };
 
 const SpeciesTraits& traitsOf(Species species);
@@ -121,6 +146,54 @@ struct Cell {
     uint32_t timesEaten = 0;
     uint32_t ageTicks = 0;
     uint32_t generation = 0;
+    uint32_t lineage = 0;     // survival mode: 1 for the embodied cell and its descendants
+};
+
+// A predatory amoeba (survival mode only): hunts and engulfs microorganisms.
+struct Predator {
+    float x = 0, y = 0;
+    float hx = 1, hy = 0;
+    float energy = 0;
+    uint32_t stunTicks = 0;
+    uint32_t digestTicks = 0;
+    uint32_t id = 0;
+};
+
+// What the player asks of the embodied cell this tick. (dx, dy) is a
+// direction in chamber cells (x right, y down the chamber); its length,
+// capped at 1, is the throttle.
+struct PlayerInput {
+    float dx = 0, dy = 0;
+    bool dash = false;
+    bool toxin = false;       // fire a burst if the cooldown allows
+};
+
+enum class DeathCause : uint8_t { None = 0, Starved, Oxygen, Waste, Eaten };
+const char* deathCauseText(DeathCause cause);
+
+struct Player {
+    bool started = false;     // survival mode has begun (amoebae exist)
+    bool embodied = false;    // a cell is under control right now
+    strata::sim::Entity entity;
+    Species species = Species::Aerobe;
+    uint64_t sinceTick = 0;   // when this life began
+    uint64_t diedTick = 0;
+    float lastX = 0, lastY = 0; // where the embodied cell was last seen
+    float energy = 0;
+    int divisions = 0;        // fissions in this run (all lives)
+    int amoebaeKilled = 0;
+    int rivalsKilled = 0;
+    int lives = 0;            // cells embodied in this run
+    uint64_t bestTicks = 0;   // longest single life
+    uint32_t toxinReady = 0;  // ticks until the next burst
+    DeathCause cause = DeathCause::None;
+    bool dashing = false;
+    // Drains on the embodied cell in its last tick, for the HUD's warnings.
+    float oxygenDrain = 0, wasteDrain = 0, dashDrain = 0, meal = 0;
+    // The latest toxin burst, for drawing it.
+    float burstX = 0, burstY = 0;
+    uint64_t burstTick = 0;
+    bool burst = false;
 };
 
 using World = strata::sim::Registry<Body, Cell>;
@@ -167,6 +240,23 @@ class MicroEnvironment {
         uint64_t stateHash() const;
         std::string summary() const;
 
+        // ---- Survival mode: embody one cell and keep it alive.
+        // The living cell nearest (x, y), of `species` (< 0: any); invalid if none.
+        strata::sim::Entity nearestCell(float x, float y, int species = -1) const;
+        // Takes control of `e`; the first time, releases the amoebae. False if `e` is not alive.
+        bool embody(strata::sim::Entity e);
+        // Embodies the descendant nearest where the last life ended. False if none is left.
+        bool continueLineage();
+        // Hands the cell back to its instincts (amoebae stay).
+        void release();
+        void setPlayerInput(const PlayerInput& input) { input_ = input; }
+        const Player& player() const { return player_; }
+        const std::vector<Predator>& predators() const { return predators_; }
+        int lineageAlive() const;
+        // Puts an amoeba at (x, y); x < 0 picks an open spot far from the player.
+        void addPredator(float x, float y, float energy) { spawnPredator(x, y, energy); }
+        uint64_t playerAgeTicks() const { return player_.embodied ? tick_ - player_.sinceTick : 0; }
+
     private:
         void generateGrains();
         void generateSources();
@@ -180,6 +270,14 @@ class MicroEnvironment {
         void tumble(Body& body, const strata::sim::Field2D& food);
         bool openCell(float x, float y) const;
         int neighbours(int cx, int cy) const;
+        // Survival mode (survival.cpp).
+        void playerActions();
+        void playerSwim(Body& body, const SpeciesTraits& traits);
+        void playerDied(DeathCause cause);
+        void updatePredators();
+        void spawnPredator(float x, float y, float energy);
+        void predatorWaves();
+        bool moveSliding(float& x, float& y, float dx, float dy) const;
 
         Config config_;
         strata::sim::Rng rng_;
@@ -193,7 +291,18 @@ class MicroEnvironment {
         uint64_t tick_ = 0;
         uint64_t births_ = 0;
         uint64_t deaths_ = 0;
+        Player player_;
+        PlayerInput input_;
+        std::vector<Predator> predators_;
+        uint32_t nextPredatorId_ = 1;
+        uint64_t nextWaveTick_ = 0;
+        int waves_ = 0;
 };
+
+// A simple bot for the embodied cell (headless demos and tests): flee the
+// nearest amoeba, burst it when it is close, otherwise swim up the food
+// gradient and away from oxygen or waste that hurts. Reads only.
+PlayerInput autopilot(const MicroEnvironment& env);
 
 }  // namespace mbstrata
 

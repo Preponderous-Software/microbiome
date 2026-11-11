@@ -10,6 +10,9 @@
 // 3. The controls: the Pause button stops the clock; a drag pans and a wheel
 //    (or, with --phone, a one-finger drag and a two-finger pinch) changes the
 //    picture. Screenshots go to <out dir>.
+// 4. Survival mode: a species button embodies a cell of that species and
+//    shows the Dash and Toxin pad; steering (keys, or with --phone the
+//    on-screen joystick) moves it; the same button lets go again.
 //
 // Needs `playwright` (1.61.1, which pins Chromium) where Node can require it.
 'use strict';
@@ -114,13 +117,22 @@ async function touchDrag(cdp, points, steps = 12) {
     await page.waitForTimeout(4000);
     // SwiftShader draws a frame in a second or more on a busy machine: shoot
     // the stage's area of the page rather than wait for the element to settle.
-    const box = await page.locator('#stage').boundingBox();
+    // Tapping a button below the stage can scroll the page, so every stage
+    // interaction first brings the stage into view and measures it again.
+    let box = await page.locator('#stage').boundingBox();
+    let cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+    const showStage = async () => {
+        await page.evaluate(() => document.getElementById('stage').scrollIntoView({ block: 'center' }));
+        box = await page.locator('#stage').boundingBox();
+        cx = box.x + box.width / 2;
+        cy = box.y + box.height / 2;
+    };
     // Waits until two more frames have been drawn since an input.
     const settle = async () => {
         const f = await page.evaluate(() => Module._mb_frames());
         await page.waitForFunction((n) => Module._mb_frames() >= n + 2, f, { timeout: 120000 });
     };
-    const stage = { screenshot: (o = {}) => page.screenshot({ ...o, clip: box, timeout: 180000 }) };
+    const stage = { screenshot: async (o = {}) => { await showStage(); return page.screenshot({ ...o, clip: box, timeout: 180000 }); } };
     const f0 = await page.evaluate(() => [Module._mb_frames(), Module._mb_tick(), performance.now()]);
     await page.waitForTimeout(5000);
     const f1 = await page.evaluate(() => [Module._mb_frames(), Module._mb_tick(), performance.now()]);
@@ -147,7 +159,6 @@ async function touchDrag(cdp, points, steps = 12) {
     check(t0 === t1, `Pause stops the clock (tick ${t0} -> ${t1})`);
     check((await page.locator('#pause').textContent()).trim() === 'Resume', 'the Pause button now reads Resume');
 
-    const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
     const before = await stage.screenshot();
     if (phone) {
         const cdp = await context.newCDPSession(page);
@@ -189,6 +200,49 @@ async function touchDrag(cdp, points, steps = 12) {
     await tap('#pause');
     await page.waitForTimeout(1500);
     await stage.screenshot({ path: path.join(outDir, 'nutrient.png') });
+
+    // 4. Survival mode.
+    const player = () => page.evaluate(() => [Module._mb_player_state(), Module._mb_player_species(), Module._mb_player_energy()]);
+    await tap('[data-embody="2"]');
+    await page.waitForFunction(() => window.mbPlayerState && window.mbPlayerState() === 1, null, { timeout: 30000 });
+    let [pState, pSpecies, pEnergy] = await player();
+    check(pState === 1 && pSpecies === 2, `the Cross-feeder button embodies a cross-feeder (state ${pState}, species ${pSpecies})`);
+    check(pEnergy >= 700, `the embodied cell starts with at least 700 energy (${pEnergy.toFixed(0)})`);
+    check(await page.locator('#pad').isVisible(), 'the Dash and Toxin buttons appear');
+    check(await page.locator('[data-embody="2"]').getAttribute('aria-pressed') === 'true', 'the Cross-feeder button shows it is pressed');
+    await settle();
+    const embodied = await stage.screenshot({ path: path.join(outDir, 'survival-embodied.png') });
+    if (phone) {
+        const cdp = await context.newCDPSession(page);
+        // Hold the joystick to the right for a while: a drag steers now.
+        const at = (x) => [{ x, y: cy, id: 0 }];
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(cx) });
+        for (let i = 1; i <= 8; ++i) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(cx + i * 10) });
+        check(await page.locator('#stick').isVisible(), 'the joystick appears under the finger');
+        await page.waitForTimeout(2500);
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+        await page.locator('#canvas').focus();
+        await page.keyboard.down('d');
+        await page.waitForTimeout(2500);
+        await page.keyboard.up('d');
+    }
+    if ((await player())[0] === 1) {
+        await tap('#toxin');
+        check(await page.evaluate(() => Module._mb_player_energy()) > 0, 'the Toxin button is on top of the stage and can be tapped');
+    }
+    await settle();
+    const swum = await stage.screenshot({ path: path.join(outDir, 'survival-swum.png') });
+    const dSwim = await diffFraction(page, embodied, swum);
+    check(dSwim > 0.05, `steering moves the cell and the camera follows (${(dSwim * 100).toFixed(1)} % of pixels changed)`);
+    [pState] = await player();
+    if (pState === 1) {
+        await tap('[data-embody="2"]');
+        await page.waitForFunction(() => window.mbPlayerState() === 0, null, { timeout: 30000 });
+        check(await page.locator('#pad').isHidden(), 'pressing the species again lets go and hides the pad');
+    } else {
+        console.log(`(the cell died during the test, state ${pState}; skipping the let-go check)`);
+    }
 
     check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
     await browser.close();

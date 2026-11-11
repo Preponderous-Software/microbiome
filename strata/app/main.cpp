@@ -8,6 +8,13 @@
 //             [--bench --ticks N]
 //             [--window-width W --window-height H]
 //             [--record out.usda [--record-every N] [--record-field N]]
+//             [--embody aerobe|fermenter|cross-feeder [--autopilot]]
+//
+// Survival mode (docs/STRATA.md, "Survival"): F embodies the cell nearest the
+// middle of the screen. WASD/arrows then swim it, Shift dashes, Space fires a
+// toxin burst and the camera follows it while amoebae hunt it; P pauses. F
+// again lets go, or after a death carries on as a descendant. --embody starts
+// that way; --autopilot hands the cell to a simple bot (headless demos).
 //
 // Without --headless or --bench it opens a window. The simulation runs on a
 // fixed tick (strata::sim::FixedStep); the window's clock only decides how
@@ -31,6 +38,7 @@
 // mb_strata reports no usage and writes no log files.
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -55,7 +63,8 @@ namespace {
 
 // SDL3 scancodes (USB HID usage ids), as StrataEvent.scancode carries them.
 enum : int32_t {
-    kA = 4, kD = 7, kE = 8, kH = 11, kQ = 20, kR = 21, kS = 22, kW = 26,
+    kA = 4, kD = 7, kE = 8, kF = 9, kH = 11, kP = 19, kQ = 20, kR = 21, kS = 22, kW = 26,
+    kLShift = 225, kRShift = 229,
     k1 = 30, k2 = 31, k3 = 32, k4 = 33,
     kEscape = 41, kTab = 43, kSpace = 44, kMinus = 45, kEquals = 46, kComma = 54, kPeriod = 55,
     kRight = 79, kLeft = 80, kDown = 81, kUp = 82, kKpMinus = 86, kKpPlus = 87
@@ -82,6 +91,8 @@ struct Args {
     std::string record;     // usd-replay/1 output (.usda); empty: no recording
     long recordEvery = 10;
     int recordField = 32;
+    int embody = -1;        // species to embody at the start; < 0: none
+    bool autopilot = false;
     std::string commandLine;
 };
 
@@ -93,7 +104,8 @@ void usage(const char* argv0) {
                  "          [--no-hud] [--hud-scale N] [--cascades N] [--shadow-map N]\n"
                  "          [--headless --ticks N [--screenshot out.png] [--frames DIR --frame-every N]]\n"
                  "          [--bench --ticks N] [--window-width W --window-height H]\n"
-                 "          [--record out.usda [--record-every N] [--record-field N]]\n",
+                 "          [--record out.usda [--record-every N] [--record-field N]]\n"
+                 "          [--embody aerobe|fermenter|cross-feeder [--autopilot]]\n",
                  argv0);
 }
 
@@ -136,6 +148,13 @@ bool parse(int argc, char** argv, Args& a) {
         else if (k == "--record-field") a.recordField = std::max(1, std::min(256, std::atoi(val().c_str())));
         else if (k == "--cascades") a.cascades = std::max(0, std::min(4, std::atoi(val().c_str())));
         else if (k == "--shadow-map") a.shadowMap = std::max(256, std::min(4096, std::atoi(val().c_str())));
+        else if (k == "--embody") {
+            const std::string sp = val();
+            a.embody = -1;
+            for (int s = 0; s < kSpeciesCount; ++s)
+                if (sp == traitsOf(static_cast<Species>(s)).name) a.embody = s;
+            if (a.embody < 0) return false;
+        } else if (k == "--autopilot") a.autopilot = true;
         else if (k == "--tps") a.ticksPerSecond = std::max(1.0, std::atof(val().c_str()));
         else if (k == "--view") {
             if (!parseView(val(), a.view)) return false;
@@ -173,8 +192,11 @@ int bench(const Args& a) {
 void help() {
     std::printf(
         "controls: WASD/arrows pan, Q/E rotate, mouse wheel or +/- zoom, 1-4 field view\n"
-        "          (composite, nutrient, waste, oxygen), space pause, ,/. slower/faster,\n"
-        "          Tab statistics overlay, R new seed, H help, Esc quit\n");
+        "          (composite, nutrient, waste, oxygen), space or P pause, ,/. slower/faster,\n"
+        "          Tab statistics overlay, R new seed, H help, Esc quit\n"
+        "survival: F become the cell nearest the middle of the screen (F again lets go);\n"
+        "          WASD/arrows swim, Shift dash, Space toxin burst, P pause. Amoebae hunt you:\n"
+        "          eat, divide, outrun or poison them. After a death F lives on as a descendant.\n");
 }
 
 // Everything a running mb_strata holds, on the heap: in a browser main()
@@ -206,9 +228,41 @@ struct App {
     uint64_t lastReport = 0;
     unsigned long frames = 0;
 
+    // Survival mode input: keys held, the page's joystick, a pending burst.
+    bool up = false, down = false, left = false, right = false, shift = false;
+    float stickX = 0, stickY = 0;  // screen space, right / up, length <= 1
+    bool stickDash = false, toxinPending = false;
+    bool follow = false;           // the camera tracks the embodied cell
+
     float aspect() const { return static_cast<float>(w) / static_cast<float>(std::max(1, h)); }
 
+    // Screen-space (right, up) to chamber (x, y) under the camera's yaw.
+    void steer(float ix, float iy, PlayerInput& in) const {
+        const float yaw = camera.yawDegrees * 3.14159265358979f / 180.0f;
+        in.dx = ix * std::cos(yaw) - iy * std::sin(yaw);
+        in.dy = -ix * std::sin(yaw) - iy * std::cos(yaw);
+    }
+
+    PlayerInput playerInput() {
+        if (a.autopilot) return autopilot(*env);
+        PlayerInput in;
+        float ix = static_cast<float>(right) - static_cast<float>(left);
+        float iy = static_cast<float>(up) - static_cast<float>(down);
+        if (ix == 0.0f && iy == 0.0f) {
+            ix = stickX;
+            iy = stickY;
+        }
+        steer(ix, iy, in);
+        in.dash = shift || stickDash;
+        in.toxin = toxinPending;
+        return in;
+    }
+
     void stepOnce() {
+        if (env->player().embodied) {
+            env->setPlayerInput(playerInput());
+            toxinPending = false;
+        }
         env->step();
         history.observe(*env);                  // reads only; kept while the HUD is hidden
         if (recorder) recorder->observe(*env);  // reads only, too
@@ -262,6 +316,47 @@ struct App {
         camera.pan(-dx * perPixel, dy * perPixel);
     }
 
+    // F: take a body, let it go, or carry on as a descendant.
+    void toggleEmbody(int species = -1) {
+        if (env->player().embodied) {
+            if (species < 0 || static_cast<int>(env->player().species) == species) {
+                env->release();
+                follow = false;
+                std::printf("survival: let go\n");
+                return;
+            }
+            env->release();
+        }
+        bool ok = false;
+        if (species < 0 && env->player().cause != DeathCause::None && env->lineageAlive() > 0) {
+            ok = env->continueLineage();
+        } else {
+            // The cell nearest the middle of the screen (the camera's target).
+            const float cx = camera.targetX + static_cast<float>(env->config().width) * 0.5f;
+            const float cy = camera.targetZ + static_cast<float>(env->config().height) * 0.5f;
+            ok = env->embody(env->nearestCell(cx, cy, species));
+        }
+        if (!ok) {
+            std::printf("survival: nothing alive to embody\n");
+            return;
+        }
+        follow = true;
+        paused = false;
+        camera.distance = std::min(camera.distance, 48.0f);
+        std::printf("survival: you are a %s (energy %.0f). Amoebae: %zu\n", traitsOf(env->player().species).name,
+                    static_cast<double>(env->player().energy), env->predators().size());
+    }
+
+    // Keeps the embodied cell in the middle of the screen.
+    void followPlayer(double dt) {
+        if (!follow || !env->player().embodied) return;
+        const float tx = env->player().lastX - static_cast<float>(env->config().width) * 0.5f;
+        const float tz = env->player().lastY - static_cast<float>(env->config().height) * 0.5f;
+        const float k = static_cast<float>(std::min(1.0, dt * 6.0));
+        camera.targetX += (tx - camera.targetX) * k;
+        camera.targetZ += (tz - camera.targetZ) * k;
+    }
+
     void setView(FieldView v) {
         view = v;
         std::printf("view: %s\n", fieldViewName(view));
@@ -273,11 +368,40 @@ struct App {
         env = std::make_unique<MicroEnvironment>(a.config);
         history.clear();
         history.observe(*env);
+        follow = false;
         std::printf("new chamber, seed %llu\n", static_cast<unsigned long long>(a.config.seed));
+    }
+
+    // Keys held down steer the embodied cell.
+    bool steerKey(int32_t sc, bool down_) {
+        switch (sc) {
+            case kW: case kUp: up = down_; return true;
+            case kS: case kDown: down = down_; return true;
+            case kA: case kLeft: left = down_; return true;
+            case kD: case kRight: right = down_; return true;
+            case kLShift: case kRShift: shift = down_; return true;
+            default: return false;
+        }
     }
 
     void key(const StrataEvent& e) {
         const float step = camera.distance * 0.04f;
+        if (e.scancode == kLShift || e.scancode == kRShift) shift = true;
+        if (e.scancode == kF) {
+            if (!e.repeat) toggleEmbody();
+            return;
+        }
+        if (e.scancode == kP) {
+            if (!e.repeat) paused = !paused;
+            return;
+        }
+        if (env->player().embodied) {
+            if (steerKey(e.scancode, true)) return;
+            if (e.scancode == kSpace) {
+                if (!e.repeat) toxinPending = true;
+                return;
+            }
+        }
         switch (e.scancode) {
             case kEscape:
 #if !defined(__EMSCRIPTEN__)
@@ -323,10 +447,12 @@ struct App {
                 dragX = e.x;
                 dragY = e.y;
             } else if (e.type == STRATA_EVENT_KEY_DOWN) key(e);
+            else if (e.type == STRATA_EVENT_KEY_UP) steerKey(e.scancode, false);
         }
         const auto now = std::chrono::steady_clock::now();
         const double elapsed = std::chrono::duration<double>(now - last).count();
         last = now;
+        followPlayer(elapsed);
         clock.setTimeScale(paused ? 0.0 : kSpeeds[speed]);
         const int ticks = clock.advance(elapsed);
         for (int i = 0; i < ticks; ++i) stepOnce();
@@ -387,6 +513,27 @@ EMSCRIPTEN_KEEPALIVE void mb_reset_camera() {
     if (!g_app) return;
     g_app->camera = fitCamera(*g_app->env, g_app->aspect());
 }
+// Survival mode. species < 0: the cell nearest the middle of the screen (or,
+// after a death, a descendant); 0-2 a cell of that species.
+EMSCRIPTEN_KEEPALIVE void mb_embody(int species) { if (g_app) g_app->toggleEmbody(species); }
+// The page's joystick, in screen space (right, up), length <= 1.
+EMSCRIPTEN_KEEPALIVE void mb_steer(float x, float y) {
+    if (!g_app) return;
+    g_app->stickX = x;
+    g_app->stickY = y;
+}
+EMSCRIPTEN_KEEPALIVE void mb_dash(int on) { if (g_app) g_app->stickDash = on != 0; }
+EMSCRIPTEN_KEEPALIVE void mb_toxin() { if (g_app && g_app->env->player().embodied) g_app->toxinPending = true; }
+// 0 nobody embodied, 1 embodied, 2 dead with descendants left, 3 dead and the lineage gone.
+EMSCRIPTEN_KEEPALIVE int mb_player_state() {
+    if (!g_app) return 0;
+    const Player& p = g_app->env->player();
+    if (p.embodied) return 1;
+    if (p.cause == DeathCause::None) return 0;
+    return g_app->env->lineageAlive() > 0 ? 2 : 3;
+}
+EMSCRIPTEN_KEEPALIVE int mb_player_species() { return g_app ? static_cast<int>(g_app->env->player().species) : 0; }
+EMSCRIPTEN_KEEPALIVE double mb_player_energy() { return g_app ? static_cast<double>(g_app->env->player().energy) : 0; }
 // For the smoke test: frames drawn, ticks run and the state hash so far.
 EMSCRIPTEN_KEEPALIVE double mb_frames() { return g_app ? static_cast<double>(g_app->frames) : 0; }
 EMSCRIPTEN_KEEPALIVE double mb_tick() { return g_app ? static_cast<double>(g_app->env->tick()) : 0; }
@@ -456,6 +603,11 @@ int main(int argc, char** argv) {
     app.hudState.headless = a.headless;
     app.showHud = a.hud;
     app.history.observe(*app.env);
+    if (a.embody >= 0) {
+        app.toggleEmbody(a.embody);
+        app.camera.targetX = app.env->player().lastX - static_cast<float>(a.config.width) * 0.5f;
+        app.camera.targetZ = app.env->player().lastY - static_cast<float>(a.config.height) * 0.5f;
+    }
 
     if (a.headless) {
         int frame = 0;
@@ -468,6 +620,7 @@ int main(int argc, char** argv) {
         for (long t = 0; t < a.ticks; ++t) {
             if (!a.framesDir.empty() && t % a.frameEvery == 0) shoot();
             app.stepOnce();
+            app.followPlayer(1.0 / a.ticksPerSecond);
             if ((t + 1) % 200 == 0) std::printf("%s\n", app.env->summary().c_str());
         }
         if (!a.framesDir.empty()) shoot();
@@ -475,6 +628,14 @@ int main(int argc, char** argv) {
         if (!a.screenshot.empty()) app.engine->saveScreenshotPng(a.screenshot);
         std::printf("%s\nstate %016llx\n", app.env->summary().c_str(),
                     static_cast<unsigned long long>(app.env->stateHash()));
+        if (app.env->player().started) {
+            const Player& p = app.env->player();
+            const uint64_t lived = p.embodied ? app.env->playerAgeTicks() : p.diedTick - p.sinceTick;
+            std::printf("survival: %s %s after %llu ticks; divisions %d, amoebae killed %d, rivals %d, lineage %d alive, amoebae %zu\n",
+                        traitsOf(p.species).name, p.embodied ? "alive" : deathCauseText(p.cause),
+                        static_cast<unsigned long long>(lived), p.divisions, p.amoebaeKilled, p.rivalsKilled,
+                        app.env->lineageAlive(), app.env->predators().size());
+        }
         const bool saved = app.saveRecording();
         app.engine.reset();
         delete g_app;

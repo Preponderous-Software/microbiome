@@ -119,6 +119,89 @@ const std::vector<StrataRenderItem>& Scene::buildItems(const MicroEnvironment& e
         }
         items_.push_back(it);
     });
+
+    // Survival mode: the amoebae, the embodied cell's beacon and its toxin burst.
+    const Player& player = env.player();
+    const float divide = env.config().predatorDivide;
+    for (const Predator& p : env.predators()) {
+        const float e = std::min(std::max(p.energy / divide, 0.0f), 1.0f);
+        StrataRenderItem it{};
+        it.kind = STRATA_PRIMITIVE_SPHERE;
+        const float s = 2.0f + 1.4f * e;  // swells as it feeds
+        it.position[0] = p.x - halfW;
+        it.position[1] = 0.25f + s * 0.35f;
+        it.position[2] = p.y - halfH;
+        it.scale[0] = s;
+        it.scale[1] = s * 0.7f;  // a flattened, crawling blob
+        it.scale[2] = s;
+        const bool stunned = p.stunTicks > 0;
+        it.color[0] = stunned ? 0.45f : 0.95f;
+        it.color[1] = stunned ? 0.50f : 0.28f;
+        it.color[2] = stunned ? 0.55f : 0.30f;
+        it.color[3] = 1.0f;
+        items_.push_back(it);
+        // A darker nucleus riding on top.
+        StrataRenderItem n = it;
+        n.scale[0] = n.scale[1] = n.scale[2] = s * 0.32f;
+        n.position[1] = it.position[1] + s * 0.28f;
+        n.color[0] = stunned ? 0.3f : 0.45f;
+        n.color[1] = 0.08f;
+        n.color[2] = stunned ? 0.3f : 0.12f;
+        items_.push_back(n);
+    }
+    if (player.embodied) {
+        if (const Body* b = env.world().get<Body>(player.entity)) {
+            // A white disc under the player and a column over it, so it never
+            // gets lost in a crowd.
+            StrataRenderItem disc{};
+            disc.kind = STRATA_PRIMITIVE_CYLINDER;
+            disc.position[0] = b->x - halfW;
+            disc.position[2] = b->y - halfH;
+            disc.position[1] = 0.42f;  // above the terrain's nutrient relief (at most 0.35)
+            disc.scale[0] = disc.scale[2] = 2.4f;
+            disc.scale[1] = 0.04f;
+            disc.color[0] = disc.color[1] = disc.color[2] = 0.95f;
+            disc.color[3] = 1.0f;
+            items_.push_back(disc);
+            StrataRenderItem it = disc;
+            it.scale[0] = it.scale[2] = 0.4f;
+            it.scale[1] = 1.6f;
+            it.position[1] = 2.0f + it.scale[1];
+            items_.push_back(it);
+            // A heading marker just ahead of it.
+            StrataRenderItem h{};
+            h.kind = STRATA_PRIMITIVE_SPHERE;
+            h.position[0] = b->x + b->hx * 1.1f - halfW;
+            h.position[1] = 0.7f;
+            h.position[2] = b->y + b->hy * 1.1f - halfH;
+            h.scale[0] = h.scale[1] = h.scale[2] = 0.38f;
+            h.color[0] = 1.0f;
+            h.color[1] = 1.0f;
+            h.color[2] = player.dashing ? 0.3f : 1.0f;
+            h.color[3] = 1.0f;
+            items_.push_back(h);
+        }
+    }
+    const uint64_t age = env.tick() - player.burstTick;
+    if (player.burst && age < 8) {
+        // The bacteriocin burst: a green ring that spreads to the toxin's radius.
+        const float r = env.config().toxinRadius * (0.45f + 0.55f * static_cast<float>(age + 1) / 8.0f);
+        const int segments = 24;
+        for (int i = 0; i < segments; ++i) {
+            const float a = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(segments);
+            StrataRenderItem it{};
+            it.kind = STRATA_PRIMITIVE_SPHERE;
+            it.position[0] = player.burstX + r * std::cos(a) - halfW;
+            it.position[1] = 0.6f;
+            it.position[2] = player.burstY + r * std::sin(a) - halfH;
+            it.scale[0] = it.scale[1] = it.scale[2] = 0.55f;
+            it.color[0] = 0.35f;
+            it.color[1] = 1.0f;
+            it.color[2] = 0.45f;
+            it.color[3] = 1.0f;
+            items_.push_back(it);
+        }
+    }
     return items_;
 }
 

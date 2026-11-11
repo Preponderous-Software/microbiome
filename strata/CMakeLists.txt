@@ -71,7 +71,7 @@ function(mb_strata_warnings target)
 endfunction()
 
 # The simulation and the field colouring: no GL, links only strata::sim.
-add_library(mb_strata_sim STATIC src/micro_environment.cpp src/field_view.cpp)
+add_library(mb_strata_sim STATIC src/micro_environment.cpp src/survival.cpp src/field_view.cpp)
 target_include_directories(mb_strata_sim PUBLIC src)
 target_link_libraries(mb_strata_sim PUBLIC strata::sim)
 mb_strata_warnings(mb_strata_sim)
@@ -112,7 +112,7 @@ if(EMSCRIPTEN)
     target_link_options(mb_strata PRIVATE
         -sALLOW_MEMORY_GROWTH=1
         -sSTACK_SIZE=1MB
-        -sEXPORTED_FUNCTIONS=_main,_mb_pan,_mb_zoom,_mb_rotate,_mb_set_view,_mb_toggle_pause,_mb_change_speed,_mb_toggle_hud,_mb_new_chamber,_mb_reset_camera,_mb_frames,_mb_tick
+        -sEXPORTED_FUNCTIONS=_main,_mb_pan,_mb_zoom,_mb_rotate,_mb_set_view,_mb_toggle_pause,_mb_change_speed,_mb_toggle_hud,_mb_new_chamber,_mb_reset_camera,_mb_frames,_mb_tick,_mb_embody,_mb_steer,_mb_dash,_mb_toxin,_mb_player_state,_mb_player_species,_mb_player_energy
         -sEXPORTED_RUNTIME_METHODS=ccall,ENV
         "--shell-file=${MB_STRATA_SHELL}")
     set_property(TARGET mb_strata APPEND PROPERTY LINK_DEPENDS "${MB_STRATA_SHELL}")
@@ -122,7 +122,7 @@ if(MB_STRATA_BUILD_TESTS)
     enable_testing()
     set(CATCH2_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../test/lib")
 
-    add_executable(mb_strata_tests test/main.cpp test/test_micro_environment.cpp test/test_replay.cpp)
+    add_executable(mb_strata_tests test/main.cpp test/test_micro_environment.cpp test/test_survival.cpp test/test_replay.cpp)
     target_include_directories(mb_strata_tests SYSTEM PRIVATE "${CATCH2_DIR}")
     target_link_libraries(mb_strata_tests PRIVATE mb_strata_sim mb_strata_replay)
     mb_strata_warnings(mb_strata_tests)
