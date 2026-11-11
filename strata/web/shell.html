@@ -138,7 +138,8 @@
       <li>Mouse: drag to pan, wheel to zoom. Touch: drag with one finger to pan, pinch to zoom, twist with two fingers to rotate.</li>
       <li>Watching, the keyboard: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows pan, <kbd>Q</kbd>/<kbd>E</kbd> rotate,
         <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>1</kbd>–<kbd>4</kbd> field, <kbd>Space</kbd> pause,
-        <kbd>,</kbd>/<kbd>.</kbd> slower/faster, <kbd>Tab</kbd> statistics, <kbd>R</kbd> new chamber.</li>
+        <kbd>,</kbd>/<kbd>.</kbd> slower/faster, <kbd>Tab</kbd> statistics, <kbd>R</kbd> new chamber.
+        While you are a cell, <kbd>Space</kbd> fires the toxin instead and <kbd>P</kbd> pauses; a drag steers instead of panning.</li>
       <li>Each chamber is seeded: the same seed always grows the same way, on any computer.</li>
     </ul>
   </details>
@@ -266,12 +267,19 @@
   dashBtn.addEventListener('pointerup', () => setDash(false));
   dashBtn.addEventListener('pointercancel', () => setDash(false));
   setInterval(syncPlayer, 250);
+  // A key released while the canvas is not focused never sends its key-up to
+  // the game, which would leave the cell swimming: forget held input instead.
+  const clearInput = () => { call('mb_clear_input', null, [], []); dashBtn.setAttribute('aria-pressed', 'false'); };
+  canvas.addEventListener('blur', clearInput);
+  window.addEventListener('blur', clearInput);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearInput(); });
   window.mbPlayerState = () => playerState;
 
   // Mouse and touch: one pointer pans, two pinch to zoom and twist to rotate.
   const touch = document.getElementById('touch');
   const stick = document.getElementById('stick');
   const STICK_R = 56;  // CSS pixels for full throttle
+  const STICK_DEAD = 10;  // CSS pixels of drag that still mean "hold still"
   let stickFrom = null;
   const pointers = new Map();
   let pinch = null;
@@ -305,7 +313,9 @@
       const len = Math.hypot(sx, sy);
       if (len > STICK_R) { sx *= STICK_R / len; sy *= STICK_R / len; }
       stick.style.setProperty('--kx', sx + 'px'); stick.style.setProperty('--ky', sy + 'px');
-      call('mb_steer', null, ['number', 'number'], [sx / STICK_R, -sy / STICK_R]);
+      // A dead zone, so a click or a nudge holds still.
+      const live = len >= STICK_DEAD;
+      call('mb_steer', null, ['number', 'number'], live ? [sx / STICK_R, -sy / STICK_R] : [0, 0]);
     } else if (pointers.size === 1) {
       call('mb_pan', null, ['number', 'number'], [dx * pxPerCss(), dy * pxPerCss()]);
     } else if (pointers.size === 2 && pinch) {

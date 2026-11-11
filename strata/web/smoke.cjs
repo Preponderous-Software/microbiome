@@ -226,6 +226,19 @@ async function touchDrag(cdp, points, steps = 12) {
         await page.keyboard.down('d');
         await page.waitForTimeout(2500);
         await page.keyboard.up('d');
+        // A key released after focus has left the canvas must not leave the cell swimming.
+        await page.locator('#canvas').focus();
+        await page.keyboard.down('a');
+        await page.waitForTimeout(600);
+        await page.evaluate(() => document.querySelector('footer a').focus());
+        await page.keyboard.up('a');
+        await page.waitForTimeout(400);
+        const where = () => page.evaluate(() => [Module._mb_player_state(), Module._mb_player_x(), Module._mb_player_y()]);
+        const w0 = await where();
+        await page.waitForTimeout(1500);
+        const w1 = await where();
+        if (w0[0] === 1 && w1[0] === 1) check(w0[1] === w1[1] && w0[2] === w1[2], `a key released after the canvas lost focus does not keep the cell swimming (${w0.slice(1).map((v) => v.toFixed(2))} -> ${w1.slice(1).map((v) => v.toFixed(2))})`);
+        else console.log('(the cell died during the test; skipping the lost-focus check)');
     }
     if ((await player())[0] === 1) {
         await tap('#toxin');

@@ -533,6 +533,17 @@ EMSCRIPTEN_KEEPALIVE int mb_player_state() {
     return g_app->env->lineageAlive() > 0 ? 2 : 3;
 }
 EMSCRIPTEN_KEEPALIVE int mb_player_species() { return g_app ? static_cast<int>(g_app->env->player().species) : 0; }
+// Forgets every held key and the joystick: the page calls this when the
+// canvas loses focus, since a key released elsewhere never sends its key-up.
+EMSCRIPTEN_KEEPALIVE void mb_clear_input() {
+    if (!g_app) return;
+    g_app->up = g_app->down = g_app->left = g_app->right = g_app->shift = false;
+    g_app->stickX = g_app->stickY = 0;
+    g_app->stickDash = false;
+}
+// Where the embodied cell is (chamber cells), for the smoke test.
+EMSCRIPTEN_KEEPALIVE double mb_player_x() { return g_app ? static_cast<double>(g_app->env->player().lastX) : 0; }
+EMSCRIPTEN_KEEPALIVE double mb_player_y() { return g_app ? static_cast<double>(g_app->env->player().lastY) : 0; }
 EMSCRIPTEN_KEEPALIVE double mb_player_energy() { return g_app ? static_cast<double>(g_app->env->player().energy) : 0; }
 // For the smoke test: frames drawn, ticks run and the state hash so far.
 EMSCRIPTEN_KEEPALIVE double mb_frames() { return g_app ? static_cast<double>(g_app->frames) : 0; }
