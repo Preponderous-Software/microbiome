@@ -316,6 +316,9 @@ int parseWebPort(const char* portValue) {
 }
 
 int runWebApp(const char* portValue, std::ostream& errors) {
+    // Seed once per launch, so a restart or redeploy does not replay the same
+    // generations (the browser build seeds in mb_restart() for the same reason).
+    std::srand(static_cast<unsigned>(std::chrono::system_clock::now().time_since_epoch().count()));
     try {
         AppConfig config;
         config.setSimulationOutputEnabled(false);

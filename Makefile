@@ -1,8 +1,8 @@
-MAIN_FILE = src/mbapp.cpp
-CATCH2_TEST_FILE = test/test_microbiome.cpp test/test_usage_reporting.cpp test/test_usd_recording.cpp
+MAIN_FILE = src/main.cpp
+CATCH2_TEST_FILE = test/test_microbiome.cpp test/test_usage_reporting.cpp test/test_usd_recording.cpp test/test_app.cpp
 CATCH2_WEB_TEST_FILE = test/test_web_server.cpp
 WEBAPP_FILE = src/webapp.cpp
-PROJECT_FILES = src/microorganism.cpp src/microbiome.cpp src/appConfig.cpp src/simulation.cpp src/result.cpp src/logger.cpp src/microorganismFactory.cpp src/biomatter.cpp src/usdRecording.cpp
+PROJECT_FILES = src/microorganism.cpp src/microbiome.cpp src/appConfig.cpp src/simulation.cpp src/result.cpp src/logger.cpp src/microorganismFactory.cpp src/biomatter.cpp src/usdRecording.cpp src/mbapp.cpp
 WEB_FILES = src/webServer.cpp
 ENVLIBCPP_FILES = env-lib-cpp/src/entity.cpp env-lib-cpp/src/environment.cpp env-lib-cpp/src/grid.cpp env-lib-cpp/src/location.cpp
 

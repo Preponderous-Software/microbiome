@@ -23,10 +23,10 @@ size_t Result::getTicksElapsed() {
     return ticksElapsed;
 }
 
-void Result::print() {
-    std::cout << "=== Simulation Result ===" << std::endl;
-    std::cout << "Surviving Microorganisms: " << survivingMicroorganisms << std::endl;
-    std::cout << "Dead Microorganisms: " << deadMicroorganisms << std::endl;
-    std::cout << "Total Energy: " << energy << std::endl;
-    std::cout << "Ticks elapsed: " << ticksElapsed << std::endl;
+void Result::print(std::ostream& out) {
+    out << "=== Simulation Result ===" << std::endl;
+    out << "Surviving Microorganisms: " << survivingMicroorganisms << std::endl;
+    out << "Dead Microorganisms: " << deadMicroorganisms << std::endl;
+    out << "Total Energy: " << energy << std::endl;
+    out << "Ticks elapsed: " << ticksElapsed << std::endl;
 }

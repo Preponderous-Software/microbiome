@@ -53,7 +53,8 @@ int parseWebPort(const char* portValue);
 /**
  * mb_webapp's body, apart from main() so the web server suite can link it:
  * serves the simulation until the server stops and returns 0, or writes why it
- * could not start to errors and returns 1.
+ * could not start to errors and returns 1. Seeds rand() from the clock first,
+ * so every launch runs different generations.
  */
 int runWebApp(const char* portValue, std::ostream& errors);
 
