@@ -18,6 +18,7 @@ const float kPanel[4] = {0.0f, 0.0f, 0.0f, 0.58f};
 const float kFrame[4] = {0.50f, 0.56f, 0.64f, 0.55f};
 const float kDanger[4] = {1.00f, 0.42f, 0.36f, 1.0f};
 const float kWarn[4] = {1.00f, 0.80f, 0.30f, 1.0f};
+const float kMutation[4] = {0.80f, 0.65f, 1.00f, 1.0f};  // mutations: a soft violet
 const float kGood[4] = {0.45f, 1.00f, 0.55f, 1.0f};
 
 std::string format(const char* fmt, double v) {
@@ -339,6 +340,9 @@ void Hud::build(const MicroEnvironment& env, const StatsHistory& history, const 
         text(W - m - static_cast<float>(keys.size()) * s, m, keys, pl.embodied ? kDim : kTitle);
     }
     if (pl.started) survival(env, state, W, H);
+#if !defined(__EMSCRIPTEN__)
+    if (pl.offerCount > 0) mutationOffer(env, W, H);  // the page shows its own buttons instead
+#endif
 
     // Strings are final now, so their c_str() pointers stay valid.
     texts_.reserve(pending_.size());
@@ -426,6 +430,29 @@ void Hud::survival(const MicroEnvironment& env, const HudState& state, float W, 
         y += lh;
         text(x, y, "divisions " + std::to_string(pl.divisions) + "  lineage " + std::to_string(lineage) + " alive", kWhite);
         y += lh;
+        // Mutations so far, two to a row: "flagella 2  hardy 1".
+        std::string row;
+        int inRow = 0;
+        for (int i = 0; i < kMutationCount; ++i) {
+            const int lv = pl.mutations[static_cast<size_t>(i)];
+            if (lv == 0) continue;
+            row += (inRow ? "  " : "") + std::string(mutationName(static_cast<Mutation>(i))) + " " + std::to_string(lv);
+            if (++inRow == 2) {
+                text(x, y, row, kMutation);
+                y += lh;
+                row.clear();
+                inRow = 0;
+            }
+        }
+        if (!row.empty()) {
+            text(x, y, row, kMutation);
+            y += lh;
+        }
+        if (pl.level(Mutation::Membrane) > 0) {
+            text(x, y, "membrane " + std::to_string(pl.membrane) + "/" + std::to_string(pl.level(Mutation::Membrane)),
+                 pl.membrane > 0 ? kGood : kWarn);
+            y += lh;
+        }
         fillRect(x0, top, W - m, y - (lh - s) + pad, kPanel);
         return;
     }
@@ -453,6 +480,42 @@ void Hud::survival(const MicroEnvironment& env, const HudState& state, float W, 
     text((W - static_cast<float>(lived.size()) * s) * 0.5f, by + 2 * pad + big + pad, lived, kWhite);
     text((W - static_cast<float>(next.size()) * s) * 0.5f, by + 2 * pad + big + pad + lh, next,
          lineage > 0 ? kGood : kWarn);
+}
+
+void Hud::mutationOffer(const MicroEnvironment& env, float W, float H) {
+    // ---- centre: the cell divided; one of the offered mutations is kept.
+    const Player& pl = env.player();
+    const float s = s_;
+    const float lh = std::round(s * 1.25f);
+    const float pad = std::round(s * 0.5f);
+    const float big = s * 2.0f;
+    const std::string head = "YOUR CELL DIVIDED";
+    const std::string sub = "keep one mutation for your lineage: press 1-" + std::to_string(pl.offerCount);
+    std::vector<std::string> rows;
+    for (int i = 0; i < pl.offerCount; ++i) {
+        const Mutation m = pl.offer[static_cast<size_t>(i)];
+        const int lv = pl.level(m);
+        rows.push_back(std::to_string(i + 1) + "  " + mutationName(m) + (lv > 0 ? " " + std::to_string(lv + 1) : "") +
+                       ": " + mutationEffect(m));
+    }
+    size_t widest = sub.size();
+    for (const auto& r : rows) widest = std::max(widest, r.size());
+    const float wHead = static_cast<float>(head.size()) * big;
+    const float boxW = std::min(W - 2 * s, std::max(wHead, static_cast<float>(widest) * s) + 4 * pad);
+    const float boxH = big + lh * static_cast<float>(1 + rows.size()) + 5 * pad;
+    // In the lower third: the camera keeps the player in the middle.
+    const float bx = (W - boxW) * 0.5f, by = std::min(H * 0.72f - boxH * 0.5f, H - boxH - s);
+    fillRect(bx, by, bx + boxW, by + boxH, kPanel);
+    fillRect(bx, by, bx + boxW, by + boxH, kPanel);
+    float y = by + 2 * pad;
+    text((W - wHead) * 0.5f, y, head, kMutation, big);
+    y += big + pad;
+    text((W - static_cast<float>(sub.size()) * s) * 0.5f, y, sub, kDim);
+    y += lh + pad;
+    for (const auto& r : rows) {
+        text(bx + 2 * pad, y, r, kWhite);
+        y += lh;
+    }
 }
 
 void Hud::submit(strata::Engine& engine) const {

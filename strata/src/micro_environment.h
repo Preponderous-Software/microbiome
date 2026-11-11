@@ -171,6 +171,17 @@ struct PlayerInput {
 enum class DeathCause : uint8_t { None = 0, Starved, Oxygen, Waste, Eaten };
 const char* deathCauseText(DeathCause cause);
 
+// Heritable mutations (survival mode). Each time the embodied cell divides,
+// three are offered and one is kept; they stay with the lineage for the run.
+// Each can be taken up to kMutationMaxLevel times.
+enum class Mutation : uint8_t { Flagella = 0, LeanDash, PotentToxin, QuickReload, Membrane, Hardy, Uptake };
+constexpr int kMutationCount = 7;
+constexpr int kMutationMaxLevel = 3;
+constexpr int kMutationOffer = 3;
+const char* mutationName(Mutation m);
+// What one more level does, e.g. "swim +20%".
+const char* mutationEffect(Mutation m);
+
 struct Player {
     bool started = false;     // survival mode has begun (amoebae exist)
     bool embodied = false;    // a cell is under control right now
@@ -194,6 +205,14 @@ struct Player {
     float burstX = 0, burstY = 0;
     uint64_t burstTick = 0;
     bool burst = false;
+    // Mutations taken so far (levels), the offer waiting for a choice, and
+    // divisions still owed an offer after this one.
+    std::array<uint8_t, kMutationCount> mutations{};
+    std::array<Mutation, kMutationOffer> offer{};
+    int offerCount = 0;
+    int offersPending = 0;
+    int membrane = 0;         // engulfings the membrane can still shrug off
+    int level(Mutation m) const { return mutations[static_cast<size_t>(m)]; }
 };
 
 using World = strata::sim::Registry<Body, Cell>;
@@ -250,6 +269,10 @@ class MicroEnvironment {
         // Hands the cell back to its instincts (amoebae stay).
         void release();
         void setPlayerInput(const PlayerInput& input) { input_ = input; }
+        // Keeps offer[index] of the pending mutation offer. False if there is none.
+        bool chooseMutation(int index);
+        // Adds one level of `m` outright, without an offer (tests, debugging).
+        void mutate(Mutation m);
         const Player& player() const { return player_; }
         const std::vector<Predator>& predators() const { return predators_; }
         int lineageAlive() const;
@@ -277,6 +300,9 @@ class MicroEnvironment {
         void updatePredators();
         void spawnPredator(float x, float y, float energy);
         void predatorWaves();
+        void playerDivided();
+        float playerDashCost() const;
+        void offerMutations();
         bool moveSliding(float& x, float& y, float dx, float dy) const;
 
         Config config_;
@@ -293,6 +319,7 @@ class MicroEnvironment {
         uint64_t deaths_ = 0;
         Player player_;
         PlayerInput input_;
+        strata::sim::Rng mutationRng_;  // its own stream, so offers never shift the chamber's
         std::vector<Predator> predators_;
         uint32_t nextPredatorId_ = 1;
         uint64_t nextWaveTick_ = 0;
@@ -303,6 +330,8 @@ class MicroEnvironment {
 // nearest amoeba, burst it when it is close, otherwise swim up the food
 // gradient and away from oxygen or waste that hurts. Reads only.
 PlayerInput autopilot(const MicroEnvironment& env);
+// The bot's pick from a pending mutation offer (an index into Player::offer).
+int autopilotMutation(const MicroEnvironment& env);
 
 }  // namespace mbstrata
 

@@ -258,7 +258,11 @@ struct App {
         return in;
     }
 
+    // A pending mutation offer stops the clock until it is answered (the bot answers at once).
+    bool choosing() const { return env->player().offerCount > 0 && !a.autopilot; }
+
     void stepOnce() {
+        if (a.autopilot && env->player().offerCount > 0) env->chooseMutation(autopilotMutation(*env));
         if (env->player().embodied) {
             env->setPlayerInput(playerInput());
             toxinPending = false;
@@ -395,6 +399,10 @@ struct App {
             if (!e.repeat) paused = !paused;
             return;
         }
+        if (env->player().offerCount > 0 && e.scancode >= k1 && e.scancode < k1 + kMutationOffer) {
+            if (!e.repeat) env->chooseMutation(e.scancode - k1);
+            return;
+        }
         if (env->player().embodied) {
             if (steerKey(e.scancode, true)) return;
             if (e.scancode == kSpace) {
@@ -453,7 +461,7 @@ struct App {
         const double elapsed = std::chrono::duration<double>(now - last).count();
         last = now;
         followPlayer(elapsed);
-        clock.setTimeScale(paused ? 0.0 : kSpeeds[speed]);
+        clock.setTimeScale(paused || choosing() ? 0.0 : kSpeeds[speed]);
         const int ticks = clock.advance(elapsed);
         for (int i = 0; i < ticks; ++i) stepOnce();
         rateTicks += ticks;
@@ -541,6 +549,22 @@ EMSCRIPTEN_KEEPALIVE void mb_clear_input() {
     g_app->stickX = g_app->stickY = 0;
     g_app->stickDash = false;
 }
+// The pending mutation offer: how many (0 when none), and each one's name,
+// effect and current level. mb_choose keeps one.
+EMSCRIPTEN_KEEPALIVE int mb_offer_count() { return g_app ? g_app->env->player().offerCount : 0; }
+EMSCRIPTEN_KEEPALIVE const char* mb_offer_name(int i) {
+    if (!g_app || i < 0 || i >= g_app->env->player().offerCount) return "";
+    return mutationName(g_app->env->player().offer[static_cast<size_t>(i)]);
+}
+EMSCRIPTEN_KEEPALIVE const char* mb_offer_effect(int i) {
+    if (!g_app || i < 0 || i >= g_app->env->player().offerCount) return "";
+    return mutationEffect(g_app->env->player().offer[static_cast<size_t>(i)]);
+}
+EMSCRIPTEN_KEEPALIVE int mb_offer_level(int i) {
+    if (!g_app || i < 0 || i >= g_app->env->player().offerCount) return 0;
+    return g_app->env->player().level(g_app->env->player().offer[static_cast<size_t>(i)]);
+}
+EMSCRIPTEN_KEEPALIVE int mb_choose(int i) { return g_app && g_app->env->chooseMutation(i) ? 1 : 0; }
 // Where the embodied cell is (chamber cells), for the smoke test.
 EMSCRIPTEN_KEEPALIVE double mb_player_x() { return g_app ? static_cast<double>(g_app->env->player().lastX) : 0; }
 EMSCRIPTEN_KEEPALIVE double mb_player_y() { return g_app ? static_cast<double>(g_app->env->player().lastY) : 0; }
@@ -646,6 +670,12 @@ int main(int argc, char** argv) {
                         traitsOf(p.species).name, p.embodied ? "alive" : deathCauseText(p.cause),
                         static_cast<unsigned long long>(lived), p.divisions, p.amoebaeKilled, p.rivalsKilled,
                         app.env->lineageAlive(), app.env->predators().size());
+            std::string muts;
+            for (int i = 0; i < kMutationCount; ++i)
+                if (p.mutations[static_cast<size_t>(i)] > 0)
+                    muts += std::string(muts.empty() ? "" : ", ") + mutationName(static_cast<Mutation>(i)) + " " +
+                            std::to_string(p.mutations[static_cast<size_t>(i)]);
+            std::printf("mutations: %s\n", muts.empty() ? "none" : muts.c_str());
         }
         const bool saved = app.saveRecording();
         app.engine.reset();

@@ -95,8 +95,10 @@ Press **F** (or, on the web page, pick a species) and you become the cell neares
 Swim with WASD or the arrows (drag on a phone), hold Shift to dash, and press Space to release a bacteriocin
 burst that stuns and hurts amoebae and rival cells nearby. Amoebae arrive to hunt you, and a fed one follows
 your scent. Your species' limits still apply: aerobes need the oxygen near the top, fermenters are poisoned
-by it, and thick waste near the seeps poisons all but cross-feeders. At 900 energy you divide; if you die,
-F carries on as one of your descendants. A chamber nobody plays runs exactly as before. Rules and tuning:
+by it, and thick waste near the seeps poisons all but cross-feeders. At 900 energy you divide, and each
+division offers three mutations to keep (faster flagella, a cheaper dash, a stronger or quicker toxin, a membrane
+that survives an engulfing, tolerance of oxygen and waste, or better uptake), press 1 to 3 or tap one. Mutations
+stay with your lineage: if you die, F carries on as one of your descendants. A chamber nobody plays runs exactly as before. Rules and tuning:
 [docs/STRATA.md](docs/STRATA.md#survival).
 
 <p align="center">
@@ -111,6 +113,12 @@ F carries on as one of your descendants. A chamber nobody plays runs exactly as 
   <img src="assets/strata/survival.png" width="440" alt="Survival mode at 1280 by 800: the camera follows an embodied pink cross-feeder, marked by a white column, feeding in a colony beside a rock grain. A panel at the top right reads YOU: cross-feeder, alive 30.0 s, with a green energy bar, feeding +8.1 per tick, toxin ready, two amoebae, one killed, 30 rivals, four divisions and a lineage of seven alive.">
   <br><em>Left: the web page on a phone, with the drag joystick and the Dash and Toxin buttons. Right: the same seed at
   tick 900, after four divisions, with a lineage of seven alive.</em>
+</p>
+
+<p align="center">
+  <img src="assets/strata/survival-mutation.png" width="560" alt="A division's mutation offer in the native window: the camera follows the embodied pink cross-feeder, now ringed by white beads under a column topped with a pale yellow sphere, while a card in the lower third reads YOUR CELL DIVIDED, keep one mutation for your lineage: press 1-3, and lists 1 Hardy: oxygen and waste burn 25% less, 2 Thick membrane: survive one more engulfing per division, 3 Efficient uptake: 15% more energy from food.">
+  <br><em>Each division stops the clock and offers three mutations for your lineage. The bead ring, the capped
+  column and a light over the cell keep it easy to find in a colony.</em>
 </p>
 Options: `--seed`, `--size`, `--per-species`, `--max-population N` (fission stops at this population;
 default 20,000), `--view`, `--zoom`, `--yaw`, `--tps`, `--no-hud`,

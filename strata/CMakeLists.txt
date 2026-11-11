@@ -112,8 +112,8 @@ if(EMSCRIPTEN)
     target_link_options(mb_strata PRIVATE
         -sALLOW_MEMORY_GROWTH=1
         -sSTACK_SIZE=1MB
-        -sEXPORTED_FUNCTIONS=_main,_mb_pan,_mb_zoom,_mb_rotate,_mb_set_view,_mb_toggle_pause,_mb_change_speed,_mb_toggle_hud,_mb_new_chamber,_mb_reset_camera,_mb_frames,_mb_tick,_mb_embody,_mb_steer,_mb_dash,_mb_toxin,_mb_player_state,_mb_player_species,_mb_player_energy,_mb_player_x,_mb_player_y,_mb_clear_input
-        -sEXPORTED_RUNTIME_METHODS=ccall,ENV
+        -sEXPORTED_FUNCTIONS=_main,_mb_pan,_mb_zoom,_mb_rotate,_mb_set_view,_mb_toggle_pause,_mb_change_speed,_mb_toggle_hud,_mb_new_chamber,_mb_reset_camera,_mb_frames,_mb_tick,_mb_embody,_mb_steer,_mb_dash,_mb_toxin,_mb_player_state,_mb_player_species,_mb_player_energy,_mb_offer_count,_mb_offer_name,_mb_offer_effect,_mb_offer_level,_mb_choose,_mb_player_x,_mb_player_y,_mb_clear_input
+        -sEXPORTED_RUNTIME_METHODS=ccall,ENV,UTF8ToString
         "--shell-file=${MB_STRATA_SHELL}")
     set_property(TARGET mb_strata APPEND PROPERTY LINK_DEPENDS "${MB_STRATA_SHELL}")
 endif()

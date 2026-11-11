@@ -374,3 +374,178 @@ TEST_CASE("Survival runs are deterministic for the same inputs", "[strata][survi
         CHECK(d.stateHash() != e.stateHash());
     }
 }
+
+// ---- Mutations
+
+namespace {
+
+// Tops the embodied cell up so the next tick divides it.
+void divideOnce(MicroEnvironment& env) {
+    env.world().get<Cell>(env.player().entity)->energy = env.config().reproductionEnergyThreshold + 200.0f;
+    env.step();
+}
+
+Config breedingChamber() {
+    Config c = quietChamber();
+    c.reproductionEnabled = true;
+    c.crowdingLimit = 64;
+    return c;
+}
+
+}  // namespace
+
+TEST_CASE("Dividing offers three different mutations, and choosing one keeps it", "[strata][survival][mutation]") {
+    MicroEnvironment env(breedingChamber());
+    embodyNew(env, Species::Aerobe, 16.5f, 16.5f);
+    CHECK(env.player().offerCount == 0);
+    divideOnce(env);
+    REQUIRE(env.player().divisions == 1);
+    REQUIRE(env.player().offerCount == kMutationOffer);
+    const Player& p = env.player();
+    CHECK(p.offer[0] != p.offer[1]);
+    CHECK(p.offer[0] != p.offer[2]);
+    CHECK(p.offer[1] != p.offer[2]);
+    const Mutation picked = p.offer[1];
+    CHECK_FALSE(env.chooseMutation(3));
+    CHECK(env.chooseMutation(1));
+    CHECK(env.player().level(picked) == 1);
+    CHECK(env.player().offerCount == 0);
+    CHECK_FALSE(env.chooseMutation(0));  // nothing left to choose from
+    CHECK(std::string(mutationName(picked)).size() > 0);
+    CHECK(std::string(mutationEffect(picked)).size() > 0);
+}
+
+TEST_CASE("Divisions while an offer is open queue further offers", "[strata][survival][mutation]") {
+    MicroEnvironment env(breedingChamber());
+    embodyNew(env, Species::Aerobe, 16.5f, 16.5f);
+    divideOnce(env);
+    divideOnce(env);
+    CHECK(env.player().divisions == 2);
+    CHECK(env.player().offersPending == 1);
+    REQUIRE(env.chooseMutation(0));
+    CHECK(env.player().offerCount == kMutationOffer);  // the queued one
+    CHECK(env.player().offersPending == 0);
+    REQUIRE(env.chooseMutation(0));
+    CHECK(env.player().offerCount == 0);
+}
+
+TEST_CASE("Offers never include a maxed mutation and run out when all are maxed", "[strata][survival][mutation]") {
+    MicroEnvironment env(breedingChamber());
+    embodyNew(env, Species::Aerobe, 16.5f, 16.5f);
+    for (int i = 0; i < kMutationCount; ++i)
+        for (int l = 0; l < kMutationMaxLevel; ++l) env.mutate(static_cast<Mutation>(i));
+    env.mutate(Mutation::Flagella);  // already maxed: no change
+    CHECK(env.player().level(Mutation::Flagella) == kMutationMaxLevel);
+    // Un-max one by building a fresh run with all but Hardy maxed.
+    MicroEnvironment env2(breedingChamber());
+    embodyNew(env2, Species::Aerobe, 16.5f, 16.5f);
+    for (int i = 0; i < kMutationCount; ++i)
+        if (static_cast<Mutation>(i) != Mutation::Hardy)
+            for (int l = 0; l < kMutationMaxLevel; ++l) env2.mutate(static_cast<Mutation>(i));
+    divideOnce(env2);
+    REQUIRE(env2.player().offerCount == 1);
+    CHECK(env2.player().offer[0] == Mutation::Hardy);
+    divideOnce(env);
+    CHECK(env.player().offerCount == 0);
+    CHECK(env.player().offersPending == 0);
+}
+
+TEST_CASE("Mutation offers are deterministic and leave the chamber's random stream alone", "[strata][survival][mutation][determinism]") {
+    Config c = breedingChamber();
+    c.initialPerSpecies = 6;
+    MicroEnvironment a(c), b(c);
+    embodyNew(a, Species::Aerobe, 16.5f, 16.5f);
+    embodyNew(b, Species::Aerobe, 16.5f, 16.5f);
+    divideOnce(a);
+    divideOnce(b);
+    REQUIRE(a.player().offerCount == kMutationOffer);
+    for (int i = 0; i < kMutationOffer; ++i) CHECK(a.player().offer[static_cast<size_t>(i)] == b.player().offer[static_cast<size_t>(i)]);
+    CHECK(a.stateHash() == b.stateHash());
+}
+
+TEST_CASE("Mutations change how the embodied cell swims, dashes and fights", "[strata][survival][mutation]") {
+    MicroEnvironment env(quietChamber());
+    const Entity e = embodyNew(env, Species::Aerobe, 10.5f, 10.5f);
+    const float speed = traitsOf(Species::Aerobe).speed;
+
+    SECTION("extra flagella: 20% faster per level") {
+        env.mutate(Mutation::Flagella);
+        env.mutate(Mutation::Flagella);
+        env.setPlayerInput(PlayerInput{1.0f, 0.0f, false, false});
+        env.run(5);
+        CHECK(bodyOf(env, e).x == Approx(10.5f + 5 * speed * 1.4f));
+    }
+    SECTION("lean sprint: dashing costs 30% less per level") {
+        Config c = quietChamber();
+        c.metabolismEnabled = true;
+        MicroEnvironment m(c);
+        const Entity me = embodyNew(m, Species::Aerobe, 10.5f, 10.5f, 800.0f);
+        m.mutate(Mutation::LeanDash);
+        const float before = cellOf(m, me).energy;
+        m.setPlayerInput(PlayerInput{1.0f, 0.0f, true, false});
+        m.step();
+        const float rate = static_cast<float>(cellOf(m, me).metabolicRate);
+        CHECK(before - cellOf(m, me).energy == Approx(rate + c.dashCost * 0.7f));
+    }
+    SECTION("potent toxin: reaches farther and hits harder") {
+        const Config& c = env.config();
+        env.mutate(Mutation::PotentToxin);
+        // Just outside the plain radius, inside the mutated one.
+        const Entity rival = env.spawn(Species::Fermenter, 10.5f + c.toxinRadius + 0.5f, 10.5f, 1000.0f, 1);
+        env.setPlayerInput(PlayerInput{0.0f, 0.0f, false, true});
+        env.step();
+        CHECK(cellOf(env, rival).energy == Approx(1000.0f - c.toxinDamage * 1.25f));
+    }
+    SECTION("quick reload: the toxin recharges sooner") {
+        env.mutate(Mutation::QuickReload);
+        env.setPlayerInput(PlayerInput{0.0f, 0.0f, false, true});
+        env.step();
+        CHECK(env.player().toxinReady == static_cast<uint32_t>(static_cast<float>(env.config().toxinCooldown) * 0.75f));
+    }
+}
+
+TEST_CASE("A thick membrane survives an engulfing, once per level, and regrows on division", "[strata][survival][mutation]") {
+    MicroEnvironment env(breedingChamber());
+    const Entity me = embodyNew(env, Species::Aerobe, 16.5f, 16.5f, 500.0f);
+    env.mutate(Mutation::Membrane);
+    REQUIRE(env.player().membrane == 1);
+    env.addPredator(16.5f, 17.3f, 600.0f);
+    env.step();
+    CHECK(env.world().alive(me));
+    CHECK(env.player().embodied);
+    CHECK(env.player().membrane == 0);
+    CHECK(env.predators()[0].stunTicks > 0);
+    // A division regrows it.
+    divideOnce(env);
+    CHECK(env.player().membrane == 1);
+}
+
+TEST_CASE("Mutations stay with the lineage when a death carries on", "[strata][survival][mutation]") {
+    MicroEnvironment env(breedingChamber());
+    const Entity me = embodyNew(env, Species::Aerobe, 16.5f, 16.5f, 1000.0f);
+    env.mutate(Mutation::Hardy);
+    env.step();  // divides
+    REQUIRE(env.lineageAlive() == 2);
+    REQUIRE(env.chooseMutation(0));
+    env.world().get<Cell>(me)->energy = -1.0f;  // starves this tick
+    env.step();
+    REQUIRE_FALSE(env.player().embodied);
+    REQUIRE(env.continueLineage());
+    CHECK(env.player().level(Mutation::Hardy) >= 1);
+}
+
+TEST_CASE("The bot picks a membrane first when one is offered", "[strata][survival][mutation]") {
+    MicroEnvironment env(breedingChamber());
+    embodyNew(env, Species::Aerobe, 16.5f, 16.5f);
+    CHECK(autopilotMutation(env) == -1);
+    for (int i = 0; i < 6 && env.player().level(Mutation::Membrane) == 0; ++i) {
+        divideOnce(env);
+        const int pick = autopilotMutation(env);
+        REQUIRE(pick >= 0);
+        bool offered = false;
+        for (int j = 0; j < env.player().offerCount; ++j)
+            offered = offered || env.player().offer[static_cast<size_t>(j)] == Mutation::Membrane;
+        if (offered) CHECK(env.player().offer[static_cast<size_t>(pick)] == Mutation::Membrane);
+        env.chooseMutation(pick);
+    }
+}
