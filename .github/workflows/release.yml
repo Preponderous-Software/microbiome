@@ -116,9 +116,12 @@ jobs:
         with:
           ref: ${{ needs.meta.outputs.ref }}
 
+      - name: Fall back to another Ubuntu mirror if the archive does not resolve
+        run: sh ci/apt-fallback.sh
+
       - name: Install SDL3 build dependencies and Mesa
         run: |
-          sudo apt-get update
+          sudo apt-get -o Acquire::Retries=3 update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev \
             libegl-dev libgl-dev libegl1 libegl-mesa0 libgl1-mesa-dri

@@ -3,8 +3,10 @@ USER root
 
 WORKDIR /microbiome
 
-# add build tools
-RUN apt-get update && apt-get install -y make g++ pkg-config curl \
+# add build tools (ci/apt-fallback.sh switches to another Ubuntu mirror only
+# when the archive host does not resolve)
+COPY ci/apt-fallback.sh /tmp/apt-fallback.sh
+RUN sh /tmp/apt-fallback.sh && apt-get -o Acquire::Retries=3 update && apt-get install -y make g++ pkg-config curl \
     libulfius-dev libmicrohttpd-dev libjansson-dev
 
 # add source code
