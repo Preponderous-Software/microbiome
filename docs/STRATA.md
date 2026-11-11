@@ -251,9 +251,15 @@ the food gradient, head for a seep when hungry) for headless runs:
 build-strata/mb_strata --headless --ticks 900 --embody cross-feeder --autopilot --screenshot survival.png
 ```
 
+The HUD adds the embodied cell's panel at the top right (energy bar, what is
+hurting it, toxin and dash state, kills and lineage), a card after a death,
+and hides the population sparkline while a cell is embodied, where the page's
+Dash and Toxin buttons sit.
+
 The browser page adds `mb_embody`, `mb_steer`, `mb_dash`, `mb_toxin`,
-`mb_player_state`, `mb_player_species` and `mb_player_energy`; a drag on the
-canvas becomes a joystick while a cell is embodied.
+`mb_clear_input`, `mb_player_state`, `mb_player_species`, `mb_player_energy`,
+`mb_player_x` and `mb_player_y`; a drag on the canvas becomes a joystick
+(with a 10 px dead zone) while a cell is embodied.
 
 ## Known gaps
 

@@ -294,37 +294,40 @@ void Hud::build(const MicroEnvironment& env, const StatsHistory& history, const 
              kDim);
     }
 
-    // ---- bottom right: population sparkline
-    const float spW = std::min(28.0f * s, W * 0.4f);
-    const float spH = s * 6.0f;
-    const float sx0 = W - m - spW - 2 * pad, sy0 = H - m - spH - 2 * lh - 2 * pad;
-    fillRect(sx0, sy0, W - m, H - m, kPanel);
-    const float gx0 = sx0 + pad, gx1 = W - m - pad;
-    const float gy0 = sy0 + pad + lh, gy1 = H - m - pad - lh;
-    const int span = history.capacity() * history.everyTicks();
-    text(gx0, sy0 + pad, "population", kWhite);
-    // The time axis: the window's span on the left, the present on the right.
-    text(gx0, gy1 + (lh - s), "-" + std::to_string(span) + " ticks", kDim);
-    text(gx1 - 3.0f * s, gy1 + (lh - s), "now", kDim);
-    line(gx0, gy1 - 0.5f, gx1, gy1 - 0.5f, kFrame, kFrame);
-    line(gx0 + 0.5f, gy0, gx0 + 0.5f, gy1, kFrame, kFrame);
-    if (samples.size() >= 2) {
-        int peak = 1;
-        for (const auto& smp : samples) peak = std::max(peak, smp.population());
-        const std::string peakLabel = "max " + std::to_string(peak);
-        text(gx1 - static_cast<float>(peakLabel.size()) * s, sy0 + pad, peakLabel, kDim);
-        const float dx = (gx1 - gx0) / static_cast<float>(history.capacity() - 1);
-        // Newest sample at the right edge.
-        const float xStart = gx1 - dx * static_cast<float>(samples.size() - 1);
-        auto yOf = [&](int v) { return gy1 - 1.0f - (gy1 - gy0 - 2.0f) * static_cast<float>(v) / static_cast<float>(peak); };
-        for (int series = -1; series < kSpeciesCount; ++series) {
-            float c[4];
-            if (series < 0) std::copy(kWhite, kWhite + 4, c);
-            else speciesTextColor(static_cast<Species>(series), c);
-            for (size_t i = 1; i < samples.size(); ++i) {
-                const int a = series < 0 ? samples[i - 1].population() : samples[i - 1].alive[series];
-                const int b = series < 0 ? samples[i].population() : samples[i].alive[series];
-                line(xStart + dx * static_cast<float>(i - 1), yOf(a), xStart + dx * static_cast<float>(i), yOf(b), c, c);
+    // ---- bottom right: population sparkline. While a cell is embodied its own
+    // panel matters more, and on the web page the Dash and Toxin buttons sit here.
+    if (!env.player().embodied) {
+        const float spW = std::min(28.0f * s, W * 0.4f);
+        const float spH = s * 6.0f;
+        const float sx0 = W - m - spW - 2 * pad, sy0 = H - m - spH - 2 * lh - 2 * pad;
+        fillRect(sx0, sy0, W - m, H - m, kPanel);
+        const float gx0 = sx0 + pad, gx1 = W - m - pad;
+        const float gy0 = sy0 + pad + lh, gy1 = H - m - pad - lh;
+        const int span = history.capacity() * history.everyTicks();
+        text(gx0, sy0 + pad, "population", kWhite);
+        // The time axis: the window's span on the left, the present on the right.
+        text(gx0, gy1 + (lh - s), "-" + std::to_string(span) + " ticks", kDim);
+        text(gx1 - 3.0f * s, gy1 + (lh - s), "now", kDim);
+        line(gx0, gy1 - 0.5f, gx1, gy1 - 0.5f, kFrame, kFrame);
+        line(gx0 + 0.5f, gy0, gx0 + 0.5f, gy1, kFrame, kFrame);
+        if (samples.size() >= 2) {
+            int peak = 1;
+            for (const auto& smp : samples) peak = std::max(peak, smp.population());
+            const std::string peakLabel = "max " + std::to_string(peak);
+            text(gx1 - static_cast<float>(peakLabel.size()) * s, sy0 + pad, peakLabel, kDim);
+            const float dx = (gx1 - gx0) / static_cast<float>(history.capacity() - 1);
+            // Newest sample at the right edge.
+            const float xStart = gx1 - dx * static_cast<float>(samples.size() - 1);
+            auto yOf = [&](int v) { return gy1 - 1.0f - (gy1 - gy0 - 2.0f) * static_cast<float>(v) / static_cast<float>(peak); };
+            for (int series = -1; series < kSpeciesCount; ++series) {
+                float c[4];
+                if (series < 0) std::copy(kWhite, kWhite + 4, c);
+                else speciesTextColor(static_cast<Species>(series), c);
+                for (size_t i = 1; i < samples.size(); ++i) {
+                    const int a = series < 0 ? samples[i - 1].population() : samples[i - 1].alive[series];
+                    const int b = series < 0 ? samples[i].population() : samples[i].alive[series];
+                    line(xStart + dx * static_cast<float>(i - 1), yOf(a), xStart + dx * static_cast<float>(i), yOf(b), c, c);
+                }
             }
         }
     }

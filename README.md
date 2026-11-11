@@ -100,8 +100,17 @@ F carries on as one of your descendants. A chamber nobody plays runs exactly as 
 [docs/STRATA.md](docs/STRATA.md#survival).
 
 <p align="center">
-  <img src="assets/strata/survival.png" width="640" alt="Survival mode at 1280 by 800: the camera follows an embodied pink cross-feeder, marked by a white column, feeding in a colony beside a rock grain. A panel at the top right reads YOU: cross-feeder, alive 30.0 s, with a green energy bar, feeding +8.1 per tick, toxin ready, two amoebae, one killed, 30 rivals, four divisions and a lineage of seven alive.">
-  <br><em><code>mb_strata --embody cross-feeder --autopilot</code>, seed 2, tick 900: the bot has killed an amoeba and divided four times.</em>
+  <img src="assets/strata/survival.gif" width="560" alt="An animated clip of survival mode. The camera follows a pink cross-feeder, marked by a white disc and column, beside a rock grain. A large red amoeba crawls up to it; the cross-feeder fires a green ring of toxin, the amoeba turns grey while stunned, the panel at the top right warns AMOEBA 3 cells away, and after the third burst the amoeba dies and the panel's killed count reads 1. Meanwhile the cross-feeder keeps feeding and divides.">
+  <br><em><code>mb_strata --embody cross-feeder --autopilot --seed 2</code>, ticks 300–540: an amoeba closes in,
+  three toxin bursts stun it and the third kills it, and the cell divides in the middle of the fight.</em>
+</p>
+
+<p align="center">
+  <img src="assets/strata/survival-phone.png" width="300" alt="The web page on a phone while a cross-feeder is embodied: the chamber with the YOU: cross-feeder panel at the top right, round Dash and Toxin buttons over the bottom right of the chamber, and below it the field, clock and survival buttons, with Cross-feeder highlighted next to the words You are a.">
+  &nbsp;
+  <img src="assets/strata/survival.png" width="440" alt="Survival mode at 1280 by 800: the camera follows an embodied pink cross-feeder, marked by a white column, feeding in a colony beside a rock grain. A panel at the top right reads YOU: cross-feeder, alive 30.0 s, with a green energy bar, feeding +8.1 per tick, toxin ready, two amoebae, one killed, 30 rivals, four divisions and a lineage of seven alive.">
+  <br><em>Left: the web page on a phone, with the drag joystick and the Dash and Toxin buttons. Right: the same seed at
+  tick 900, after four divisions, with a lineage of seven alive.</em>
 </p>
 Options: `--seed`, `--size`, `--per-species`, `--max-population N` (fission stops at this population;
 default 20,000), `--view`, `--zoom`, `--yaw`, `--tps`, `--no-hud`,
