@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <set>
 #include <sstream>
 #include <string>
 #include <unistd.h>
@@ -532,6 +533,55 @@ TEST_CASE("Each living microorganism steps to an orthogonally adjacent location 
             REQUIRE(distance == 1);
             REQUIRE(microorganisms[i]->getTimesMoved() == tick);
         }
+    }
+}
+
+// A microorganism is put back on the same location before every tick, and every location it steps to
+// is collected. Uniformly at random among its neighbours, 200 trials reach all of them with
+// overwhelming probability, so the collected set is exactly the in-grid neighbourhood: two for a
+// corner, three for an edge and four for the interior, with nothing off the grid. All three
+// organisms stay well below the reproduction threshold and above any metabolic cost, so no
+// biomatter appears to bias the walk.
+TEST_CASE("Microorganisms only step to orthogonal neighbours that are on the grid", "[microbiome][movement]") {
+    Microbiome microbiome(0, "Test Microbiome", 3, 1);
+    std::vector<Microorganism*> microorganisms = microbiome.getMicroorganisms();
+    REQUIRE(microorganisms.size() == 3);
+    for (Microorganism* microorganism : microorganisms) {
+        microorganism->setMetabolicRate(1);
+    }
+    Microorganism* mover = microorganisms[0];
+
+    auto destinationsFrom = [&](int x, int y) {
+        std::set<std::pair<int, int>> destinations;
+        Location& start = microbiome.getGrid()->getLocationByCoordinates(x, y);
+        for (int trial = 0; trial < 200; trial++) {
+            for (Microorganism* microorganism : microorganisms) {
+                microorganism->setEnergy(500);
+            }
+            microbiome.moveEntityToNewLocation(mover->getId(), start.getId());
+
+            microbiome.initiateMicroorganismMovement();
+
+            Location& location = microbiome.getGrid()->getLocation(mover->getLocationId());
+            destinations.insert({location.getX(), location.getY()});
+        }
+        REQUIRE(microbiome.getMicroorganisms().size() == 3);
+        REQUIRE(microbiome.getBiomatter().empty());
+        return destinations;
+    };
+
+    SECTION("a corner has two neighbours") {
+        REQUIRE(destinationsFrom(0, 0) == std::set<std::pair<int, int>>{{1, 0}, {0, 1}});
+        REQUIRE(destinationsFrom(2, 2) == std::set<std::pair<int, int>>{{1, 2}, {2, 1}});
+    }
+
+    SECTION("an edge has three neighbours") {
+        REQUIRE(destinationsFrom(1, 0) == std::set<std::pair<int, int>>{{0, 0}, {2, 0}, {1, 1}});
+        REQUIRE(destinationsFrom(2, 1) == std::set<std::pair<int, int>>{{2, 0}, {2, 2}, {1, 1}});
+    }
+
+    SECTION("the interior has four neighbours") {
+        REQUIRE(destinationsFrom(1, 1) == std::set<std::pair<int, int>>{{1, 0}, {0, 1}, {2, 1}, {1, 2}});
     }
 }
 

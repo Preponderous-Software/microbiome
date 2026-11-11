@@ -3,6 +3,8 @@
 
 #include "simulation.h"
 
+#include <iostream>
+
 /**
  * The Result class represents the results of a simulation.
  * @author Daniel McCoy Stephenson
@@ -15,7 +17,7 @@ class Result {
         size_t getDeadMicroorganisms();
         size_t getEnergy();
         size_t getTicksElapsed();
-        void print();
+        void print(std::ostream& out = std::cout);
     private:
         size_t survivingMicroorganisms;
         size_t deadMicroorganisms;

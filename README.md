@@ -163,10 +163,18 @@ Each cell of the grid shows what is at that location:
 By default (`AppConfig`), `mb_app` runs 10 simulations one after another, each on a 10x10 grid
 starting with 100 microorganisms, as fast as possible and until every microorganism has died. The
 screen is redrawn every tick. Once all of them have finished it prints the average ticks elapsed,
-dead and surviving microorganisms and total energy across the simulations.
+dead and surviving microorganisms and total energy across the simulations, rounded down to whole
+numbers.
+
+Every launch runs different simulations: `mb_app` seeds its random numbers once at startup and
+prints the seed first (`Seed: 1234 (repeat this run with --seed 1234)`). `./mb_app --seed <N>`, with
+`N` a whole number from 0 to 4294967295, runs exactly the simulations of an earlier launch with that
+seed again. Any other arguments print `usage: ./mb_app [--record <path.usda>] [--seed <N>]` to
+stderr and exit with status 2. The live-view web server (`mb_webapp`) also seeds once per launch,
+so a restart does not replay the same generations.
 
 ## Testing
-The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting and replay recording) and `./mb_web_tests` (the web server's HTTP endpoints, simulation loop and startup failures, which link Ulfius).
+The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting, replay recording and the console app's run loop, averages and options) and `./mb_web_tests` (the web server's HTTP endpoints, simulation loop and startup failures, which link Ulfius).
 
 ### How to run the tests in the dev container
 1. Install Docker
@@ -254,7 +262,8 @@ Every living microorganism and every piece of biomatter is an entity at its grid
 (`microorganism` or `biomatter`) and `energy` values; microorganisms also carry `metabolicRate`
 and `timesEaten`. The stage carries the `alive` and `dead` counts and the `totalEnergy` per tick.
 The other simulations run as before. Without `--record` nothing is recorded and the app behaves
-exactly as it always has.
+exactly as it always has. Add `--seed <N>` to record the same run again (see the console app's
+defaults above).
 
 The recording is written by [usd-recorder](https://github.com/Preponderous-Software/usd-recorder)'s
 dependency-free C++ writer, vendored at v0.1.0 (MIT) in `src/header/vendor/usd_recorder/`, so no
