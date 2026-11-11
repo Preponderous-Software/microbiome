@@ -218,7 +218,10 @@ async function touchDrag(cdp, points, steps = 12) {
         const at = (x) => [{ x, y: cy, id: 0 }];
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(cx) });
         for (let i = 1; i <= 8; ++i) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(cx + i * 10) });
-        check(await page.locator('#stick').isVisible(), 'the joystick appears under the finger');
+        // The joystick only shows while a cell is embodied; on a slow runner the
+        // cell can die first, as the let-go check below allows for too.
+        if ((await player())[0] === 1) check(await page.locator('#stick').isVisible(), 'the joystick appears under the finger');
+        else console.log('(the cell died before the joystick check; skipping it)');
         await page.waitForTimeout(2500);
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     } else {
