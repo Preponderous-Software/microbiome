@@ -87,7 +87,31 @@ build-strata/mb_strata --bench --ticks 2000   # ticks per second, no rendering
 ```
 
 In the window: WASD/arrows pan, Q/E rotate, mouse wheel or +/- zoom, drag to pan, 1–4 switch the field
-view, space pauses, `,`/`.` change speed, Tab shows or hides the statistics overlay, R starts a new seed.
+view, space or P pauses, `,`/`.` change speed, Tab shows or hides the statistics overlay, R starts a new seed.
+
+### Survival: be one of them
+
+Press **F** (or, on the web page, pick a species) and you become the cell nearest the middle of the screen.
+Swim with WASD or the arrows (drag on a phone), hold Shift to dash, and press Space to release a bacteriocin
+burst that stuns and hurts amoebae and rival cells nearby. Amoebae arrive to hunt you, and a fed one follows
+your scent. Your species' limits still apply: aerobes need the oxygen near the top, fermenters are poisoned
+by it, and thick waste near the seeps poisons all but cross-feeders. At 900 energy you divide; if you die,
+F carries on as one of your descendants. A chamber nobody plays runs exactly as before. Rules and tuning:
+[docs/STRATA.md](docs/STRATA.md#survival).
+
+<p align="center">
+  <img src="assets/strata/survival.gif" width="560" alt="An animated clip of survival mode. The camera follows a pink cross-feeder, marked by a white disc and column, beside a rock grain. A large red amoeba crawls up to it; the cross-feeder fires a green ring of toxin, the amoeba turns grey while stunned, the panel at the top right warns AMOEBA 3 cells away, and after the third burst the amoeba dies and the panel's killed count reads 1. Meanwhile the cross-feeder keeps feeding and divides.">
+  <br><em><code>mb_strata --embody cross-feeder --autopilot --seed 2</code>, ticks 300–540: an amoeba closes in,
+  three toxin bursts stun it and the third kills it, and the cell divides in the middle of the fight.</em>
+</p>
+
+<p align="center">
+  <img src="assets/strata/survival-phone.png" width="300" alt="The web page on a phone while a cross-feeder is embodied: the chamber with the YOU: cross-feeder panel at the top right, round Dash and Toxin buttons over the bottom right of the chamber, and below it the field, clock and survival buttons, with Cross-feeder highlighted next to the words You are a.">
+  &nbsp;
+  <img src="assets/strata/survival.png" width="440" alt="Survival mode at 1280 by 800: the camera follows an embodied pink cross-feeder, marked by a white column, feeding in a colony beside a rock grain. A panel at the top right reads YOU: cross-feeder, alive 30.0 s, with a green energy bar, feeding +8.1 per tick, toxin ready, two amoebae, one killed, 30 rivals, four divisions and a lineage of seven alive.">
+  <br><em>Left: the web page on a phone, with the drag joystick and the Dash and Toxin buttons. Right: the same seed at
+  tick 900, after four divisions, with a lineage of seven alive.</em>
+</p>
 Options: `--seed`, `--size`, `--per-species`, `--max-population N` (fission stops at this population;
 default 20,000), `--view`, `--zoom`, `--yaw`, `--tps`, `--no-hud`,
 `--hud-scale N` (glyph size in multiples of 8 pixels; by default it follows the window height),

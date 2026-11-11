@@ -105,6 +105,8 @@ class Hud {
         void fillRect(float x0, float y0, float x1, float y1, const float color[4]);
         void horizontalGradient(float x0, float y0, float x1, float y1, FieldView view, int channel);
         void disc(float x, float y, float diameter, const float color[4]);
+        // Survival mode: the embodied cell's vital signs, or how its life ended.
+        void survival(const MicroEnvironment& env, const HudState& state, float W, float H);
 
         const ScreenProjector* projector_ = nullptr;
         float s_ = 8.0f;

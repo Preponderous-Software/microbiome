@@ -195,6 +195,7 @@ void MicroEnvironment::updateOrganisms() {
         int32_t rate;
         uint8_t attached;
         uint32_t generation;
+        uint32_t lineage;
     };
     std::vector<Birth> births;
     size_t population = world_.size();
@@ -203,13 +204,18 @@ void MicroEnvironment::updateOrganisms() {
         const SpeciesTraits& t = traitsOf(cell.species);
         Field2D& food = t.food == Food::Nutrient ? nutrient_ : waste_;
         ++cell.ageTicks;
+        const bool isPlayer = player_.embodied && e == player_.entity;
 
-        if (!body.attached) swim(body, t, food);
+        if (isPlayer) {
+            body.attached = 0;  // the player swims where it is told
+            playerSwim(body, t);
+        } else if (!body.attached) swim(body, t, food);
         const int cx = cellOf(body.x), cy = cellOf(body.y);
 
         // Biofilm: a fermenter that touches a surface, or is crowded by
         // neighbours (a quorum), may settle and stop swimming.
-        if (!body.attached && t.attachChance > 0.0f &&
+        if (isPlayer) {
+        } else if (!body.attached && t.attachChance > 0.0f &&
             (grains_.touchesSurface(cx, cy) || neighbours(cx, cy) >= config_.quorumThreshold) &&
             rng_.chance(t.attachChance))
             body.attached = 1;
@@ -221,12 +227,22 @@ void MicroEnvironment::updateOrganisms() {
             const float factor = body.attached ? config_.attachedMetabolismFactor : 1.0f;
             cell.energy -= static_cast<float>(cell.metabolicRate) * factor;
             const float o2 = oxygen_.at(cx, cy);
+            float o2Drain = 0.0f, wasteDrain = 0.0f;
             if (t.oxygenTolerance >= 0.0f && o2 > t.oxygenTolerance)
-                cell.energy -= (o2 - t.oxygenTolerance) * config_.oxygenToxicity;
+                o2Drain = (o2 - t.oxygenTolerance) * config_.oxygenToxicity;
             const float w = waste_.at(cx, cy);
             if (t.wasteTolerance >= 0.0f && w > t.wasteTolerance)
-                cell.energy -= (w - t.wasteTolerance) * config_.wasteToxicity;
+                wasteDrain = (w - t.wasteTolerance) * config_.wasteToxicity;
+            cell.energy -= o2Drain;
+            cell.energy -= wasteDrain;
+            if (isPlayer) {
+                player_.oxygenDrain = o2Drain;
+                player_.wasteDrain = wasteDrain;
+                player_.dashDrain = player_.dashing ? config_.dashCost : 0.0f;
+                cell.energy -= player_.dashDrain;
+            }
         }
+        if (isPlayer) player_.meal = 0.0f;
 
         if (config_.feedingEnabled && cell.energy > 0.0f) {
             const float want = static_cast<float>(cell.metabolicRate) * t.uptakeMultiplier;
@@ -237,7 +253,9 @@ void MicroEnvironment::updateOrganisms() {
                     const float gotO2 = oxygen_.take(cx, cy, eaten * t.oxygenPerUnit);
                     aerobic = gotO2 / t.oxygenPerUnit;
                 }
-                cell.energy += aerobic * t.aerobicYield + (eaten - aerobic) * t.anaerobicYield;
+                const float gained = aerobic * t.aerobicYield + (eaten - aerobic) * t.anaerobicYield;
+                cell.energy += gained;
+                if (isPlayer) player_.meal = gained;
                 if (t.wasteFraction > 0.0f) waste_.add(cx, cy, eaten * t.wasteFraction);
                 ++cell.timesEaten;
             }
@@ -248,6 +266,16 @@ void MicroEnvironment::updateOrganisms() {
             // nutrient field where it died.
             nutrient_.add(cx, cy, config_.biomatterYieldPerDeath);
             bumpOccupancy(cx, cy, -1);
+            if (isPlayer) {
+                player_.lastX = body.x;
+                player_.lastY = body.y;
+                const float drains[3] = {static_cast<float>(cell.metabolicRate) + player_.dashDrain, player_.oxygenDrain,
+                                         player_.wasteDrain};
+                DeathCause cause = DeathCause::Starved;
+                if (drains[1] > drains[0] && drains[1] >= drains[2]) cause = DeathCause::Oxygen;
+                else if (drains[2] > drains[0] && drains[2] > drains[1]) cause = DeathCause::Waste;
+                playerDied(cause);
+            }
             world_.destroy(e);
             ++deaths_;
             --population;
@@ -270,7 +298,9 @@ void MicroEnvironment::updateOrganisms() {
             }
             cell.energy = each;
             bumpOccupancy(cellOf(bx), cellOf(by), 1);
-            births.push_back({cell.species, bx, by, each, cell.metabolicRate, body.attached, cell.generation + 1});
+            if (isPlayer) ++player_.divisions;
+            births.push_back({cell.species, bx, by, each, cell.metabolicRate, body.attached, cell.generation + 1,
+                              cell.lineage});
         }
     });
 
@@ -287,6 +317,7 @@ void MicroEnvironment::updateOrganisms() {
         cell.metabolicRate = b.rate;
         cell.species = b.species;
         cell.generation = b.generation;
+        cell.lineage = b.lineage;
         world_.add(e, cell);
         ++births_;
     }
@@ -308,7 +339,12 @@ void MicroEnvironment::updateFields() {
 
 void MicroEnvironment::step() {
     rebuildOccupancy();
+    if (player_.started) playerActions();
     updateOrganisms();
+    if (player_.started) {
+        updatePredators();
+        predatorWaves();
+    }
     updateFields();
     ++tick_;
 }
@@ -357,7 +393,26 @@ uint64_t MicroEnvironment::stateHash() const {
         h.u32(c.timesEaten);
         h.u32(c.ageTicks);
         h.u32(c.generation);
+        if (player_.started) h.u32(c.lineage);
     });
+    // Survival mode only, so a run nobody plays keeps its hash.
+    if (player_.started) {
+        h.u8(player_.embodied ? 1 : 0);
+        h.u32(player_.entity.index);
+        h.u32(player_.entity.generation);
+        h.u32(player_.toxinReady);
+        h.u64(nextWaveTick_);
+        for (const Predator& p : predators_) {
+            h.u32(p.id);
+            h.f32(p.x);
+            h.f32(p.y);
+            h.f32(p.hx);
+            h.f32(p.hy);
+            h.f32(p.energy);
+            h.u32(p.stunTicks);
+            h.u32(p.digestTicks);
+        }
+    }
     return h.value();
 }
 
