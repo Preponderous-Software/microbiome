@@ -21,6 +21,17 @@ const float kWarn[4] = {1.00f, 0.80f, 0.30f, 1.0f};
 const float kMutation[4] = {0.80f, 0.65f, 1.00f, 1.0f};  // mutations: a soft violet
 const float kGood[4] = {0.45f, 1.00f, 0.55f, 1.0f};
 
+// Joins items into rows of at most `perRow`, two spaces apart.
+std::vector<std::string> joinRows(const std::vector<std::string>& items, size_t perRow) {
+    std::vector<std::string> rows;
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (i % perRow == 0) rows.emplace_back();
+        else rows.back() += "  ";
+        rows.back() += items[i];
+    }
+    return rows;
+}
+
 std::string format(const char* fmt, double v) {
     char buf[64];
     std::snprintf(buf, sizeof buf, fmt, v);
@@ -431,20 +442,7 @@ void Hud::survival(const MicroEnvironment& env, const HudState& state, float W, 
         text(x, y, "divisions " + std::to_string(pl.divisions) + "  lineage " + std::to_string(lineage) + " alive", kWhite);
         y += lh;
         // Mutations so far, two to a row: "flagella 2  hardy 1".
-        std::string row;
-        int inRow = 0;
-        for (int i = 0; i < kMutationCount; ++i) {
-            const int lv = pl.mutations[static_cast<size_t>(i)];
-            if (lv == 0) continue;
-            row += (inRow ? "  " : "") + std::string(mutationName(static_cast<Mutation>(i))) + " " + std::to_string(lv);
-            if (++inRow == 2) {
-                text(x, y, row, kMutation);
-                y += lh;
-                row.clear();
-                inRow = 0;
-            }
-        }
-        if (!row.empty()) {
+        for (const auto& row : joinRows(mutationItems(pl), 2)) {
             text(x, y, row, kMutation);
             y += lh;
         }
@@ -458,28 +456,90 @@ void Hud::survival(const MicroEnvironment& env, const HudState& state, float W, 
     }
 
     if (pl.cause == DeathCause::None) return;  // left the body on purpose
-    // ---- centre: how the last life ended and what to do next.
-    const float big = s * 2.0f;
+    // ---- centre: how the last life ended, what the lineage carried (the
+    // recap) and what to do next. On a narrow screen the same lines are
+    // broken up, and the glyphs shrink only if that is still not enough.
     const std::string head = std::string("YOU WERE ") + deathCauseText(pl.cause);
     std::string upper;
     for (char ch : head) upper += static_cast<char>(ch >= 'a' && ch <= 'z' ? ch - 32 : ch);
-    const std::string lived =
-        format("survived %.1f s", static_cast<double>(pl.diedTick - pl.sinceTick) / tps) +
-        format(" (best %.1f s)", static_cast<double>(pl.bestTicks) / tps) + "  divisions " + std::to_string(pl.divisions) +
-        "  amoebae killed " + std::to_string(pl.amoebaeKilled);
-    const std::string next = lineage > 0 ? "F: live on as one of your " + std::to_string(lineage) + " descendants"
-                                         : "Your lineage is gone. F: embody another cell, R: new chamber";
+    const std::string survived = format("survived %.1f s", static_cast<double>(pl.diedTick - pl.sinceTick) / tps) +
+                                 format(" (best %.1f s)", static_cast<double>(pl.bestTicks) / tps);
+    const std::string tally =
+        "divisions " + std::to_string(pl.divisions) + "  amoebae killed " + std::to_string(pl.amoebaeKilled);
+    const auto items = mutationItems(pl);
+    const std::string run = "run: " + std::to_string(pl.lives) + (pl.lives == 1 ? " life" : " lives") +
+                            "  rivals killed " + std::to_string(pl.rivalsKilled);
+
+    struct Line {
+        std::string text;
+        const float* color;
+        bool block;        // left-aligned with the other block lines (the recap), else centred
+        bool gap = false;  // a little air before it (the call to action)
+    };
+    const auto layout = [&](bool narrow) {
+        std::vector<Line> lines;
+        if (narrow) {
+            lines.push_back({survived, kWhite, false});
+            lines.push_back({tally, kWhite, false});
+        } else {
+            lines.push_back({survived + "  " + tally, kWhite, false});
+        }
+        if (items.empty()) {
+            lines.push_back({"no mutations yet", kMutation, true});
+        } else {
+            const auto rows = joinRows(items, narrow ? 1 : 3);
+            for (size_t i = 0; i < rows.size(); ++i)
+                lines.push_back({(i == 0 ? "mutations: " : "           ") + rows[i], kMutation, true});
+        }
+        if (lineage == 0) lines.push_back({run, kWhite, true});
+        if (lineage > 1) {
+            lines.push_back({"F: live on as one of your " + std::to_string(lineage) + " descendants", kGood, false, true});
+        } else if (lineage == 1) {
+            lines.push_back({"F: live on as your last descendant", kGood, false, true});
+        } else if (narrow) {
+            lines.push_back({"Your lineage is gone.", kWarn, false, true});
+            lines.push_back({"F: another cell  R: new chamber", kWarn, false});
+        } else {
+            lines.push_back({"Your lineage is gone. F: embody another cell, R: new chamber", kWarn, false, true});
+        }
+        return lines;
+    };
+    const auto widestOf = [](const std::vector<Line>& lines) {
+        size_t w = 0;
+        for (const auto& l : lines) w = std::max(w, l.text.size());
+        return w;
+    };
+    const float room = W - 2 * m - 4 * pad;
+    std::vector<Line> lines = layout(false);
+    if (static_cast<float>(std::max(widestOf(lines), upper.size() * 2)) * s > room) lines = layout(true);
+    // Glyph size: the HUD's own, or the largest multiple of 8 that fits.
+    float fs = s;
+    while (fs > 8.0f && static_cast<float>(widestOf(lines)) * fs > room) fs -= 8.0f;
+    float big = fs * 2.0f;
+    while (big > fs && static_cast<float>(upper.size()) * big > room) big -= 8.0f;
+    const float flh = std::round(fs * 1.25f);
+
     const float wHead = static_cast<float>(upper.size()) * big;
-    const float wBody = static_cast<float>(std::max(lived.size(), next.size())) * s;
+    const float wBody = static_cast<float>(widestOf(lines)) * fs;
     const float boxW = std::min(W - 2 * m, std::max(wHead, wBody) + 4 * pad);
-    const float boxH = big + 2 * lh + 4 * pad;
+    const float boxH = big + static_cast<float>(lines.size()) * flh + 5 * pad;
     const float bx = (W - boxW) * 0.5f, by = H * 0.5f - boxH * 0.5f;
     fillRect(bx, by, bx + boxW, by + boxH, kPanel);
     fillRect(bx, by, bx + boxW, by + boxH, kPanel);  // twice: nearly opaque over the stats behind it
-    text((W - wHead) * 0.5f, by + 2 * pad, upper, kDanger, big);
-    text((W - static_cast<float>(lived.size()) * s) * 0.5f, by + 2 * pad + big + pad, lived, kWhite);
-    text((W - static_cast<float>(next.size()) * s) * 0.5f, by + 2 * pad + big + pad + lh, next,
-         lineage > 0 ? kGood : kWarn);
+    float y = by + 2 * pad;
+    text((W - wHead) * 0.5f, y, upper, kDanger, big);
+    y += big + pad;
+    // Block lines share one left edge, so continuation rows line up.
+    size_t blockW = 0;
+    for (const auto& l : lines)
+        if (l.block) blockW = std::max(blockW, l.text.size());
+    const float blockX = (W - static_cast<float>(blockW) * fs) * 0.5f;
+    for (const Line& l : lines) {
+        if (l.gap) y += pad;
+        const float x = l.block ? blockX : (W - static_cast<float>(l.text.size()) * fs) * 0.5f;
+        text(x, y, l.text, l.color, fs);
+        y += flh;
+    }
 }
 
 void Hud::mutationOffer(const MicroEnvironment& env, float W, float H) {

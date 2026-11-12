@@ -215,6 +215,10 @@ struct Player {
     int level(Mutation m) const { return mutations[static_cast<size_t>(m)]; }
 };
 
+// The lineage's mutations as "name level" items, in enum order, skipping
+// those not taken: {"flagella 2", "hardy 1"}. Empty when none were taken.
+std::vector<std::string> mutationItems(const Player& player);
+
 using World = strata::sim::Registry<Body, Cell>;
 
 struct Stats {
