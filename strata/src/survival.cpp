@@ -92,6 +92,15 @@ void MicroEnvironment::offerMutations() {
     if (player_.offerCount == 0) player_.offersPending = 0;  // everything is maxed
 }
 
+std::vector<std::string> mutationItems(const Player& player) {
+    std::vector<std::string> items;
+    for (int i = 0; i < kMutationCount; ++i) {
+        const int lv = player.mutations[static_cast<size_t>(i)];
+        if (lv > 0) items.push_back(std::string(mutationName(static_cast<Mutation>(i))) + " " + std::to_string(lv));
+    }
+    return items;
+}
+
 void MicroEnvironment::mutate(Mutation m) {
     uint8_t& level = player_.mutations[static_cast<size_t>(m)];
     if (level >= kMutationMaxLevel) return;

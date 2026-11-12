@@ -245,7 +245,11 @@ async function touchDrag(cdp, points, steps = 12) {
     }
     if ((await player())[0] === 1) {
         await tap('#toxin');
-        check(await page.evaluate(() => Module._mb_player_energy()) > 0, 'the Toxin button is on top of the stage and can be tapped');
+        // State and energy in one read: on a slow runner the cell can die
+        // between the tap and the check, which says nothing about the button.
+        const [st, energy] = await page.evaluate(() => [Module._mb_player_state(), Module._mb_player_energy()]);
+        if (st === 1) check(energy > 0, 'the Toxin button is on top of the stage and can be tapped');
+        else console.log(`(the cell died during the Toxin check, state ${st}; skipping it)`);
     }
     await settle();
     const swum = await stage.screenshot({ path: path.join(outDir, 'survival-swum.png') });

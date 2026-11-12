@@ -549,3 +549,14 @@ TEST_CASE("The bot picks a membrane first when one is offered", "[strata][surviv
         env.chooseMutation(pick);
     }
 }
+
+TEST_CASE("The death recap lists the lineage's mutations in order", "[strata][survival][mutation]") {
+    Player p;
+    CHECK(mutationItems(p).empty());
+    p.mutations[static_cast<size_t>(Mutation::Hardy)] = 1;
+    p.mutations[static_cast<size_t>(Mutation::Flagella)] = 2;
+    const auto items = mutationItems(p);
+    REQUIRE(items.size() == 2);
+    CHECK(items[0] == std::string(mutationName(Mutation::Flagella)) + " 2");
+    CHECK(items[1] == std::string(mutationName(Mutation::Hardy)) + " 1");
+}
