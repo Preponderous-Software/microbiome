@@ -30,9 +30,10 @@ jobs:
       # otherwise be appended to the binary as a stray argument.
       - name: Run Catch2 test suite
         run: docker run --rm --entrypoint sh microbiome-ci -c ./mb_tests
-      # The web server suite binds 127.0.0.1 ports 18123-18126; they are
-      # container-local, so no port needs publishing. It is the only coverage
-      # of the HTTP endpoints (GET /api/state, the index page, GET /og.png).
+      # The web server suite binds 127.0.0.1 ports, a separate one for each
+      # test case that needs one; they are container-local, so no port needs
+      # publishing. It is the only coverage of the web server (its HTTP
+      # endpoints, simulation loop and startup failures).
       - name: Run web server test suite
         run: docker run --rm --entrypoint sh microbiome-ci -c ./mb_web_tests
       # Regression guard for the stale-binary defect (#33): running the suites
