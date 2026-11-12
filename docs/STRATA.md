@@ -233,6 +233,20 @@ panel in `hud.*` and the controls in `app/main.cpp` and `web/shell.html`.
   tick (starved, oxygen, waste) or to an amoeba. Daughters inherit the
   lineage; after a death `F` (`continueLineage`) embodies the descendant
   nearest where the player died.
+- **Mutations.** Each fission of the embodied cell (`playerDivided`) offers
+  `kMutationOffer` (3) different mutations not yet at `kMutationMaxLevel` (3),
+  drawn from their own random stream (`mutationRng_`), so offers never shift
+  the chamber's. A division while an offer is open queues another
+  (`offersPending`). `chooseMutation` keeps one; the window and the page stop
+  the clock until it is answered, and `--autopilot` answers at once
+  (`autopilotMutation`: membrane first, then flagella, hardy, uptake, toxin,
+  reload, sprint). Per level: extra flagella swim 20% faster; lean sprint
+  makes the dash 30% cheaper; potent toxin reaches 1 cell farther and hits
+  25% harder; quick reload recharges 25% sooner and costs 15% less; hardy
+  cuts oxygen and waste poisoning by 25%; efficient uptake gives 15% more
+  energy from food; a thick membrane survives one engulfing per level (the
+  amoeba is stunned and pushed back), regrown on each division and on
+  embodying. Mutations belong to the run, so a descendant keeps them.
 - **Order in a tick:** player actions (toxin), the organism pass (the player
   swims instead of running and tumbling), the amoebae, new waves, then the
   fields.
@@ -252,12 +266,15 @@ build-strata/mb_strata --headless --ticks 900 --embody cross-feeder --autopilot 
 ```
 
 The HUD adds the embodied cell's panel at the top right (energy bar, what is
-hurting it, toxin and dash state, kills and lineage), a card after a death,
+hurting it, toxin and dash state, kills, lineage, mutations and membrane), a
+mutation card in the lower third while an offer is open (window only; the page
+shows buttons instead), a card after a death,
 and hides the population sparkline while a cell is embodied, where the page's
 Dash and Toxin buttons sit.
 
 The browser page adds `mb_embody`, `mb_steer`, `mb_dash`, `mb_toxin`,
-`mb_clear_input`, `mb_player_state`, `mb_player_species`, `mb_player_energy`,
+`mb_clear_input`, `mb_offer_count`, `mb_offer_name`, `mb_offer_effect`,
+`mb_offer_level`, `mb_choose`, `mb_player_state`, `mb_player_species`, `mb_player_energy`,
 `mb_player_x` and `mb_player_y`; a drag on the canvas becomes a joystick
 (with a 10 px dead zone) while a cell is embodied.
 

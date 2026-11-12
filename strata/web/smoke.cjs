@@ -260,6 +260,30 @@ async function touchDrag(cdp, points, steps = 12) {
         console.log(`(the cell died during the test, state ${pState}; skipping the let-go check)`);
     }
 
+    // The mutation offer. The chamber decides when a division comes, so a
+    // fake offer stands in for the game's answers: the page must show it as
+    // buttons, pass the tapped choice on, and hide it once it is answered.
+    await page.evaluate(() => {
+        const real = Module.ccall;
+        window.mbChosen = -1;
+        Module.ccall = (name, ret, types, args) => {
+            if (name === 'mb_offer_count') return 3;
+            if (name === 'mb_offer_name') return ['Extra flagella', 'Hardy', 'Potent toxin'][args[0]];
+            if (name === 'mb_offer_effect') return 'effect ' + args[0];
+            if (name === 'mb_offer_level') return args[0] === 1 ? 1 : 0;
+            if (name === 'mb_choose') { window.mbChosen = args[0]; Module.ccall = real; return 1; }
+            return real(name, ret, types, args);
+        };
+    });
+    await page.waitForSelector('#mutate:not([hidden]) [data-mutation="2"]', { timeout: 5000 });
+    const labels = await page.locator('#mutate button b').allTextContents();
+    check(labels.join(' / ') === '1. Extra flagella / 2. Hardy 2 / 3. Potent toxin', `a mutation offer shows as buttons (${labels.join(' / ')})`);
+    await stage.screenshot({ path: path.join(outDir, 'survival-mutation.png') });
+    await tap('#mutate [data-mutation="1"]');
+    check(await page.evaluate(() => window.mbChosen) === 1, 'tapping a mutation chooses it');
+    await page.waitForFunction(() => document.getElementById('mutate').hidden, null, { timeout: 5000 });
+    check(true, 'the offer closes once answered');
+
     check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
     await browser.close();
     if (failures.length) {

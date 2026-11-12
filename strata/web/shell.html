@@ -60,6 +60,14 @@
   .pad button { min-width: 76px; min-height: 56px; border-radius: 28px; font-weight: 600; background: rgba(17,26,23,0.82); touch-action: none; }
   .pad #toxin { border-color: #4fd67a; color: #b9f5cb; }
   .pad #dash[aria-pressed="true"] { background: #6b4a12; border-color: #ffcc55; }
+  /* A division's mutation offer: one button per mutation, over the bottom of the stage. */
+  .mutate { position: absolute; z-index: 3; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(560px, calc(100% - 24px));
+    display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 12px; background: rgba(14,12,24,0.9); border: 1px solid #a98be0; }
+  .mutate[hidden] { display: none !important; }
+  .mutate p { margin: 0 0 2px; color: #d9c8ff; font-weight: 600; text-align: center; }
+  .mutate button { text-align: left; min-height: 48px; border-color: #6d5a99; }
+  .mutate button b { color: #e4d8ff; }
+  .mutate button span { color: var(--muted); }
   .survive-hint { color: var(--muted); font-size: 0.85rem; align-self: center; padding: 0 6px; }
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .group { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--panel); border-radius: 10px; }
@@ -96,6 +104,9 @@
     <div class="pad" id="pad" hidden>
       <button type="button" id="dash" aria-pressed="false">Dash</button>
       <button type="button" id="toxin">Toxin</button>
+    </div>
+    <div class="mutate" id="mutate" role="dialog" aria-label="Choose a mutation" hidden>
+      <p>Your cell divided. Keep one mutation for your lineage:</p>
     </div>
     <div id="status">Loading…</div>
   </div>
@@ -135,6 +146,9 @@
         <kbd>Space</kbd> or Toxin fires a bacteriocin burst that stuns and hurts amoebae and rival cells nearby. <kbd>P</kbd> pauses.</li>
       <li>Amoebae hunt you; a fed one follows your scent. Your species' limits still apply: aerobes need the oxygen near the top, fermenters are poisoned by it,
         and thick waste near the seeps poisons all but cross-feeders. At 900 energy you divide; if you die, your descendants carry on.</li>
+      <li>Each division pauses the chamber and offers three mutations; keep one with <kbd>1</kbd>–<kbd>3</kbd> or a tap.
+        Mutations (faster flagella, a cheaper dash, a stronger or quicker toxin, a membrane that survives an engulfing,
+        tolerance of oxygen and waste, better uptake) stay with your lineage for the run, up to three levels each.</li>
       <li>Mouse: drag to pan, wheel to zoom. Touch: drag with one finger to pan, pinch to zoom, twist with two fingers to rotate.</li>
       <li>Watching, the keyboard: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows pan, <kbd>Q</kbd>/<kbd>E</kbd> rotate,
         <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>1</kbd>–<kbd>4</kbd> field, <kbd>Space</kbd> pause,
@@ -252,6 +266,38 @@
     document.getElementById('surviveHint').textContent = st === 1 ? 'You are a' : st >= 2 ? 'Or become a' : 'Become a';
     embodyButtons.forEach((b) => b.setAttribute('aria-pressed', String(st === 1 && embodiedAs === parseInt(b.dataset.embody, 10))));
     if (st !== 1) { call('mb_steer', null, ['number', 'number'], [0, 0]); stick.hidden = true; }
+    syncOffer();
+  }
+  // The mutation offer: rebuilt only when it changes, so a button is not
+  // swapped out under a finger mid-tap.
+  const mutate = document.getElementById('mutate');
+  let offerKey = '';
+  function syncOffer() {
+    const n = call('mb_offer_count', 'number', [], []) || 0;
+    const offers = [];
+    for (let i = 0; i < n; ++i) {
+      offers.push({
+        name: call('mb_offer_name', 'string', ['number'], [i]),
+        effect: call('mb_offer_effect', 'string', ['number'], [i]),
+        level: call('mb_offer_level', 'number', ['number'], [i]),
+      });
+    }
+    const key = offers.map((o) => o.name + o.level).join('|');
+    mutate.hidden = n === 0;
+    if (key === offerKey) return;
+    offerKey = key;
+    mutate.querySelectorAll('button').forEach((b) => b.remove());
+    offers.forEach((o, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.mutation = String(i);
+      const lvl = o.level > 0 ? ' ' + (o.level + 1) : '';
+      b.innerHTML = '<b></b> <span></span>';
+      b.querySelector('b').textContent = (i + 1) + '. ' + o.name + lvl;
+      b.querySelector('span').textContent = o.effect;
+      b.addEventListener('click', () => { call('mb_choose', 'number', ['number'], [i]); syncPlayer(); canvas.focus({ preventScroll: true }); });
+      mutate.appendChild(b);
+    });
   }
   embodyButtons.forEach((b) => b.addEventListener('click', () => {
     const sp = parseInt(b.dataset.embody, 10);

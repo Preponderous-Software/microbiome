@@ -37,7 +37,8 @@ MicroEnvironment::MicroEnvironment(const Config& config)
       grains_(config.width, config.height),
       nutrient_(config.width, config.height, config.initialNutrient),
       waste_(config.width, config.height, 0.0f),
-      oxygen_(config.width, config.height, 0.0f) {
+      oxygen_(config.width, config.height, 0.0f),
+      mutationRng_(config.seed, 0x6d7574617465ULL) {  // "mutate"
     if (config.width < 8 || config.height < 8) throw std::invalid_argument("mbstrata: the environment must be at least 8x8");
     occupancy_.assign(static_cast<size_t>(config.width) * static_cast<size_t>(config.height), 0);
     generateGrains();
@@ -233,12 +234,18 @@ void MicroEnvironment::updateOrganisms() {
             const float w = waste_.at(cx, cy);
             if (t.wasteTolerance >= 0.0f && w > t.wasteTolerance)
                 wasteDrain = (w - t.wasteTolerance) * config_.wasteToxicity;
+            if (isPlayer) {
+                // Hardy: each level shrugs off a quarter of the poisoning.
+                const float hardy = 1.0f - 0.25f * static_cast<float>(player_.level(Mutation::Hardy));
+                o2Drain *= hardy;
+                wasteDrain *= hardy;
+            }
             cell.energy -= o2Drain;
             cell.energy -= wasteDrain;
             if (isPlayer) {
                 player_.oxygenDrain = o2Drain;
                 player_.wasteDrain = wasteDrain;
-                player_.dashDrain = player_.dashing ? config_.dashCost : 0.0f;
+                player_.dashDrain = player_.dashing ? playerDashCost() : 0.0f;
                 cell.energy -= player_.dashDrain;
             }
         }
@@ -253,7 +260,8 @@ void MicroEnvironment::updateOrganisms() {
                     const float gotO2 = oxygen_.take(cx, cy, eaten * t.oxygenPerUnit);
                     aerobic = gotO2 / t.oxygenPerUnit;
                 }
-                const float gained = aerobic * t.aerobicYield + (eaten - aerobic) * t.anaerobicYield;
+                float gained = aerobic * t.aerobicYield + (eaten - aerobic) * t.anaerobicYield;
+                if (isPlayer) gained *= 1.0f + 0.15f * static_cast<float>(player_.level(Mutation::Uptake));
                 cell.energy += gained;
                 if (isPlayer) player_.meal = gained;
                 if (t.wasteFraction > 0.0f) waste_.add(cx, cy, eaten * t.wasteFraction);
@@ -298,7 +306,7 @@ void MicroEnvironment::updateOrganisms() {
             }
             cell.energy = each;
             bumpOccupancy(cellOf(bx), cellOf(by), 1);
-            if (isPlayer) ++player_.divisions;
+            if (isPlayer) playerDivided();
             births.push_back({cell.species, bx, by, each, cell.metabolicRate, body.attached, cell.generation + 1,
                               cell.lineage});
         }
@@ -402,6 +410,10 @@ uint64_t MicroEnvironment::stateHash() const {
         h.u32(player_.entity.generation);
         h.u32(player_.toxinReady);
         h.u64(nextWaveTick_);
+        for (uint8_t level : player_.mutations) h.u8(level);
+        for (int i = 0; i < player_.offerCount; ++i) h.u8(static_cast<uint8_t>(player_.offer[static_cast<size_t>(i)]));
+        h.u32(static_cast<uint32_t>(player_.offersPending));
+        h.u32(static_cast<uint32_t>(player_.membrane));
         for (const Predator& p : predators_) {
             h.u32(p.id);
             h.f32(p.x);

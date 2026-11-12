@@ -39,6 +39,77 @@ const char* deathCauseText(DeathCause cause) {
     return "";
 }
 
+const char* mutationName(Mutation m) {
+    switch (m) {
+        case Mutation::Flagella: return "Extra flagella";
+        case Mutation::LeanDash: return "Lean sprint";
+        case Mutation::PotentToxin: return "Potent toxin";
+        case Mutation::QuickReload: return "Quick reload";
+        case Mutation::Membrane: return "Thick membrane";
+        case Mutation::Hardy: return "Hardy";
+        case Mutation::Uptake: return "Efficient uptake";
+    }
+    return "";
+}
+
+const char* mutationEffect(Mutation m) {
+    switch (m) {
+        case Mutation::Flagella: return "swim 20% faster";
+        case Mutation::LeanDash: return "dash costs 30% less";
+        case Mutation::PotentToxin: return "toxin reaches 1 cell farther, hits 25% harder";
+        case Mutation::QuickReload: return "toxin recharges 25% sooner, costs 15% less";
+        case Mutation::Membrane: return "survive one more engulfing per division";
+        case Mutation::Hardy: return "oxygen and waste burn 25% less";
+        case Mutation::Uptake: return "15% more energy from food";
+    }
+    return "";
+}
+
+float MicroEnvironment::playerDashCost() const {
+    return config_.dashCost * (1.0f - 0.3f * static_cast<float>(player_.level(Mutation::LeanDash)));
+}
+
+void MicroEnvironment::playerDivided() {
+    ++player_.divisions;
+    player_.membrane = player_.level(Mutation::Membrane);  // a fresh membrane for the daughter
+    if (player_.offerCount > 0) ++player_.offersPending;
+    else offerMutations();
+}
+
+void MicroEnvironment::offerMutations() {
+    // Three different mutations not yet at their highest level, drawn from
+    // the mutation stream; fewer when fewer are left.
+    std::array<Mutation, kMutationCount> open{};
+    int n = 0;
+    for (int i = 0; i < kMutationCount; ++i)
+        if (player_.mutations[static_cast<size_t>(i)] < kMutationMaxLevel) open[static_cast<size_t>(n++)] = static_cast<Mutation>(i);
+    player_.offerCount = std::min(n, kMutationOffer);
+    for (int i = 0; i < player_.offerCount; ++i) {
+        const int j = i + static_cast<int>(mutationRng_.below(static_cast<uint32_t>(n - i)));
+        std::swap(open[static_cast<size_t>(i)], open[static_cast<size_t>(j)]);
+        player_.offer[static_cast<size_t>(i)] = open[static_cast<size_t>(i)];
+    }
+    if (player_.offerCount == 0) player_.offersPending = 0;  // everything is maxed
+}
+
+void MicroEnvironment::mutate(Mutation m) {
+    uint8_t& level = player_.mutations[static_cast<size_t>(m)];
+    if (level >= kMutationMaxLevel) return;
+    ++level;
+    if (m == Mutation::Membrane) ++player_.membrane;
+}
+
+bool MicroEnvironment::chooseMutation(int index) {
+    if (index < 0 || index >= player_.offerCount) return false;
+    mutate(player_.offer[static_cast<size_t>(index)]);
+    player_.offerCount = 0;
+    if (player_.offersPending > 0) {
+        --player_.offersPending;
+        offerMutations();
+    }
+    return true;
+}
+
 Entity MicroEnvironment::nearestCell(float x, float y, int species) const {
     Entity best;
     float bestD = 0.0f;
@@ -73,6 +144,7 @@ bool MicroEnvironment::embody(Entity e) {
     player_.lastX = body->x;
     player_.lastY = body->y;
     player_.cause = DeathCause::None;
+    player_.membrane = player_.level(Mutation::Membrane);
     ++player_.lives;
     input_ = PlayerInput{};
     return true;
@@ -153,22 +225,27 @@ void MicroEnvironment::playerActions() {
         return;
     }
     const bool moving = input_.dx * input_.dx + input_.dy * input_.dy > 1e-6f;
-    player_.dashing = input_.dash && moving && cell->energy > config_.dashCost * 4.0f;
+    player_.dashing = input_.dash && moving && cell->energy > playerDashCost() * 4.0f;
 
-    if (input_.toxin && player_.toxinReady == 0 && cell->energy > config_.toxinCost + 20.0f) {
-        cell->energy -= config_.toxinCost;
-        const float r2 = config_.toxinRadius * config_.toxinRadius;
+    const float potent = static_cast<float>(player_.level(Mutation::PotentToxin));
+    const float reload = static_cast<float>(player_.level(Mutation::QuickReload));
+    const float toxinCost = config_.toxinCost * (1.0f - 0.15f * reload);
+    const float damage = config_.toxinDamage * (1.0f + 0.25f * potent);
+    if (input_.toxin && player_.toxinReady == 0 && cell->energy > toxinCost + 20.0f) {
+        cell->energy -= toxinCost;
+        const float radius = config_.toxinRadius + potent;
+        const float r2 = radius * radius;
         const float px = body->x, py = body->y;
         world_.each<Body, Cell>([&](Entity, Body& b, Cell& c) {
             if (c.lineage == kPlayerLineage) return;  // kin are immune
             if (distance2(px, py, b.x, b.y) > r2) return;
             const bool wasAlive = c.energy > 0.0f;
-            c.energy -= config_.toxinDamage;
+            c.energy -= damage;
             if (wasAlive && c.energy <= 0.0f) ++player_.rivalsKilled;  // dies in this tick's pass
         });
         for (Predator& p : predators_) {
             if (p.energy <= 0.0f || distance2(px, py, p.x, p.y) > r2) continue;
-            p.energy -= config_.toxinDamage;
+            p.energy -= damage;
             p.stunTicks = static_cast<uint32_t>(std::max(0, config_.toxinStun));
             if (p.energy <= 0.0f) ++player_.amoebaeKilled;  // removed in updatePredators
         }
@@ -176,7 +253,8 @@ void MicroEnvironment::playerActions() {
         player_.burstX = px;
         player_.burstY = py;
         player_.burstTick = tick_;
-        player_.toxinReady = static_cast<uint32_t>(std::max(0, config_.toxinCooldown));
+        player_.toxinReady =
+            static_cast<uint32_t>(std::max(0.0f, static_cast<float>(config_.toxinCooldown) * (1.0f - 0.25f * reload)));
     }
     input_.toxin = false;  // one burst per press
 }
@@ -187,7 +265,8 @@ void MicroEnvironment::playerSwim(Body& body, const SpeciesTraits& traits) {
     const float len = std::sqrt(len2);
     const float ux = input_.dx / len, uy = input_.dy / len;
     const float throttle = std::min(len, 1.0f);
-    const float speed = traits.speed * throttle * (player_.dashing ? config_.dashMultiplier : 1.0f);
+    const float flagella = 1.0f + 0.2f * static_cast<float>(player_.level(Mutation::Flagella));
+    const float speed = traits.speed * throttle * flagella * (player_.dashing ? config_.dashMultiplier : 1.0f);
     body.hx = ux;
     body.hy = uy;
     const int ox = cellOf(body.x), oy = cellOf(body.y);
@@ -290,11 +369,22 @@ void MicroEnvironment::updatePredators() {
             if (target.valid()) {
                 const Body* b = world_.get<Body>(target);
                 const Cell* c = world_.get<Cell>(target);
-                if (b && c && distance2(p.x, p.y, b->x, b->y) <= reach2) {
+                const bool isPlayer = player_.embodied && target == player_.entity;
+                if (b && c && isPlayer && player_.membrane > 0 && distance2(p.x, p.y, b->x, b->y) <= reach2) {
+                    // The thick membrane holds: the amoeba spits the cell out
+                    // and recoils, stunned, while the membrane is spent.
+                    --player_.membrane;
+                    p.stunTicks = static_cast<uint32_t>(std::max(0, config_.toxinStun));
+                    float ax = p.x, ay = p.y;
+                    if (moveSliding(ax, ay, -p.hx * 1.5f, -p.hy * 1.5f)) {
+                        p.x = ax;
+                        p.y = ay;
+                    }
+                } else if (b && c && distance2(p.x, p.y, b->x, b->y) <= reach2) {
                     p.energy += std::max(0.0f, c->energy) * config_.predatorGain + 30.0f;
                     p.digestTicks = static_cast<uint32_t>(std::max(0, config_.predatorDigest));
                     bumpOccupancy(cellOf(b->x), cellOf(b->y), -1);
-                    if (player_.embodied && target == player_.entity) {
+                    if (isPlayer) {
                         player_.lastX = b->x;
                         player_.lastY = b->y;
                         playerDied(DeathCause::Eaten);
@@ -338,6 +428,18 @@ void MicroEnvironment::updatePredators() {
     }
 }
 
+int autopilotMutation(const MicroEnvironment& env) {
+    // Staying alive first, then getting away, then eating and fighting.
+    static const Mutation kPreference[kMutationCount] = {Mutation::Membrane,    Mutation::Flagella, Mutation::Hardy,
+                                                         Mutation::Uptake,      Mutation::PotentToxin,
+                                                         Mutation::QuickReload, Mutation::LeanDash};
+    const Player& pl = env.player();
+    for (Mutation want : kPreference)
+        for (int i = 0; i < pl.offerCount; ++i)
+            if (pl.offer[static_cast<size_t>(i)] == want) return i;
+    return pl.offerCount > 0 ? 0 : -1;
+}
+
 PlayerInput autopilot(const MicroEnvironment& env) {
     PlayerInput in;
     const Player& pl = env.player();
@@ -361,7 +463,7 @@ PlayerInput autopilot(const MicroEnvironment& env) {
         in.dx = dx / len;
         in.dy = dy / len;
         in.dash = true;
-        in.toxin = threatD < cfg.toxinRadius * 0.8f && pl.toxinReady == 0;
+        in.toxin = threatD < (cfg.toxinRadius + static_cast<float>(pl.level(Mutation::PotentToxin))) * 0.8f && pl.toxinReady == 0;
         return in;
     }
     float gx = 0, gy = 0;

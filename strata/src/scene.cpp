@@ -92,7 +92,9 @@ const std::vector<StrataRenderItem>& Scene::buildItems(const MicroEnvironment& e
     const float halfW = static_cast<float>(env.config().width) * 0.5f;
     const float halfH = static_cast<float>(env.config().height) * 0.5f;
     const float threshold = env.config().reproductionEnergyThreshold;
-    env.world().each<Body, Cell>([&](strata::sim::Entity, const Body& b, const Cell& c) {
+    const Player& player = env.player();
+    env.world().each<Body, Cell>([&](strata::sim::Entity ent, const Body& b, const Cell& c) {
+        const bool you = player.embodied && ent == player.entity;
         const SpeciesTraits& t = traitsOf(c.species);
         const float e = std::min(std::max(c.energy / threshold, 0.0f), 1.0f);
         StrataRenderItem it{};
@@ -113,7 +115,8 @@ const std::vector<StrataRenderItem>& Scene::buildItems(const MicroEnvironment& e
             it.scale[2] = 0.85f;
         } else {
             it.kind = STRATA_PRIMITIVE_SPHERE;
-            const float s = 0.55f + 0.5f * e;
+            // The embodied cell is drawn a little larger than its neighbours.
+            const float s = (0.55f + 0.5f * e) * (you ? 1.35f : 1.0f);
             it.position[1] = 0.3f + s * 0.5f;
             it.scale[0] = it.scale[1] = it.scale[2] = s;
         }
@@ -121,7 +124,6 @@ const std::vector<StrataRenderItem>& Scene::buildItems(const MicroEnvironment& e
     });
 
     // Survival mode: the amoebae, the embodied cell's beacon and its toxin burst.
-    const Player& player = env.player();
     const float divide = env.config().predatorDivide;
     for (const Predator& p : env.predators()) {
         const float e = std::min(std::max(p.energy / divide, 0.0f), 1.0f);
@@ -165,9 +167,21 @@ const std::vector<StrataRenderItem>& Scene::buildItems(const MicroEnvironment& e
             items_.push_back(disc);
             StrataRenderItem it = disc;
             it.scale[0] = it.scale[2] = 0.4f;
-            it.scale[1] = 1.6f;
+            it.scale[1] = 2.4f;
             it.position[1] = 2.0f + it.scale[1];
             items_.push_back(it);
+            // A bright cap on the column, the first thing the eye finds.
+            StrataRenderItem cap{};
+            cap.kind = STRATA_PRIMITIVE_SPHERE;
+            cap.position[0] = it.position[0];
+            cap.position[1] = 2.0f + 2.0f * it.scale[1] + 0.4f;
+            cap.position[2] = it.position[2];
+            cap.scale[0] = cap.scale[1] = cap.scale[2] = 1.1f;
+            cap.color[0] = 1.0f;
+            cap.color[1] = 0.95f;
+            cap.color[2] = 0.55f;
+            cap.color[3] = 1.0f;
+            items_.push_back(cap);
             // A heading marker just ahead of it.
             StrataRenderItem h{};
             h.kind = STRATA_PRIMITIVE_SPHERE;
@@ -180,12 +194,30 @@ const std::vector<StrataRenderItem>& Scene::buildItems(const MicroEnvironment& e
             h.color[2] = player.dashing ? 0.3f : 1.0f;
             h.color[3] = 1.0f;
             items_.push_back(h);
+            // A slowly pulsing ring of beads held above the tallest cells
+            // (a free cell tops out near 1.4), so the player stays visible in
+            // the middle of a colony.
+            const int beads = 16;
+            const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(env.tick() % 40) / 40.0f * 2.0f * kPi);
+            const float ring = 2.8f + 0.45f * pulse;
+            for (int i = 0; i < beads; ++i) {
+                const float a = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(beads);
+                StrataRenderItem bead{};
+                bead.kind = STRATA_PRIMITIVE_SPHERE;
+                bead.position[0] = b->x + ring * std::cos(a) - halfW;
+                bead.position[1] = 1.6f;
+                bead.position[2] = b->y + ring * std::sin(a) - halfH;
+                bead.scale[0] = bead.scale[1] = bead.scale[2] = 0.5f;
+                bead.color[0] = bead.color[1] = bead.color[2] = 0.85f + 0.15f * pulse;
+                bead.color[3] = 1.0f;
+                items_.push_back(bead);
+            }
         }
     }
     const uint64_t age = env.tick() - player.burstTick;
     if (player.burst && age < 8) {
         // The bacteriocin burst: a green ring that spreads to the toxin's radius.
-        const float r = env.config().toxinRadius * (0.45f + 0.55f * static_cast<float>(age + 1) / 8.0f);
+        const float r = (env.config().toxinRadius + static_cast<float>(player.level(Mutation::PotentToxin))) * (0.45f + 0.55f * static_cast<float>(age + 1) / 8.0f);
         const int segments = 24;
         for (int i = 0; i < segments; ++i) {
             const float a = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(segments);
@@ -221,6 +253,22 @@ const std::vector<StrataPointLight>& Scene::buildSeepLights(const MicroEnvironme
         l.color[2] = 0.45f;
         l.intensity = 0.9f;
         lights_.push_back(l);
+    }
+    // A cool white light over the embodied cell lifts it out of the crowd.
+    const Player& player = env.player();
+    if (player.embodied && lights_.size() < static_cast<size_t>(STRATA_MAX_POINT_LIGHTS)) {
+        if (const Body* b = env.world().get<Body>(player.entity)) {
+            StrataPointLight l{};
+            l.position[0] = b->x - halfW;
+            l.position[1] = 3.5f;
+            l.position[2] = b->y - halfH;
+            l.range = 10.0f;
+            l.color[0] = 0.85f;
+            l.color[1] = 0.92f;
+            l.color[2] = 1.0f;
+            l.intensity = 3.0f;
+            lights_.push_back(l);
+        }
     }
     return lights_;
 }
