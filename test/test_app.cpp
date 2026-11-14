@@ -184,12 +184,15 @@ TEST_CASE("Any other arguments print the usage and exit with status 2", "[app]")
         {"--seed", "4294967296"},
         {"--seed", "99999999999999999999999"},
         {"--seed", "1", "extra"},
+        {"--colony"},
+        {"--colony", "medium"},
+        {"--colony", "Poor"},
     };
     for (const std::vector<std::string>& arguments : invalid) {
         std::ostringstream out, err;
         INFO("arguments: " << arguments.size() << " starting with " << arguments[0]);
         REQUIRE(runWith(arguments, out, err, smallConfig(1)) == 2);
-        REQUIRE(err.str() == "usage: mb_app [--record <path.usda>] [--seed <N>]\n");
+        REQUIRE(err.str() == "usage: mb_app [--record <path.usda>] [--seed <N>] [--colony <poor|rich>]\n");
         REQUIRE(out.str().empty());
     }
 }
@@ -215,4 +218,43 @@ TEST_CASE("onStarted runs only once the arguments are accepted", "[app]") {
     REQUIRE(calls == 0);
     REQUIRE(runConsoleApp(3, goodArgv.data(), out, err, smallConfig(1), [&calls]() { calls++; }) == 0);
     REQUIRE(calls == 1);
+}
+
+// The opt-in branching-colony scenario (BranchingColony): one colony instead of
+// the configured simulations, printed and measured.
+TEST_CASE("--colony grows one colony instead of the simulations", "[app][colony]") {
+    AppConfig config = smallConfig(3);
+    config.setColonyGridSize(41);
+    config.setSimulationOutputEnabled(true);
+    for (const char* regime : {"poor", "rich"}) {
+        std::ostringstream out, err;
+        REQUIRE(runWith({"--colony", regime, "--seed", "9"}, out, err, config) == 0);
+        REQUIRE(err.str().empty());
+        INFO(out.str());
+        REQUIRE(contains(out.str(), std::string("Growing a colony on nutrient-") + regime + " agar (41x41)..."));
+        REQUIRE(contains(out.str(), "#"));
+        REQUIRE(contains(out.str(), "=== Colony Complete ==="));
+        REQUIRE(contains(out.str(), "Box-counting dimension: "));
+        REQUIRE(contains(out.str(), "Mass-radius dimension: "));
+        REQUIRE(contains(out.str(), "Nutrient packets released: ") == (std::string(regime) == "poor"));
+        REQUIRE_FALSE(contains(out.str(), "Running simulation"));
+    }
+}
+
+TEST_CASE("The same --seed grows the same colony", "[app][colony]") {
+    AppConfig config = smallConfig(1);
+    config.setColonyGridSize(41);
+    std::ostringstream first, second, other, err;
+    REQUIRE(runWith({"--colony", "poor", "--seed", "5"}, first, err, config) == 0);
+    REQUIRE(runWith({"--seed", "5", "--colony", "poor"}, second, err, config) == 0);
+    REQUIRE(runWith({"--colony", "poor", "--seed", "6"}, other, err, config) == 0);
+    REQUIRE(first.str() == second.str());
+    REQUIRE(first.str().substr(first.str().find('\n')) != other.str().substr(other.str().find('\n')));
+}
+
+TEST_CASE("--colony cannot be recorded", "[app][colony]") {
+    std::ostringstream out, err;
+    REQUIRE(runWith({"--colony", "poor", "--record", "/tmp/never-written.usda"}, out, err, smallConfig(1)) == 2);
+    REQUIRE(contains(err.str(), "--record cannot be combined with --colony"));
+    REQUIRE(out.str().empty());
 }

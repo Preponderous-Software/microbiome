@@ -47,3 +47,27 @@ bool AppConfig::isSimulationOutputEnabled() {
 void AppConfig::setSimulationOutputEnabled(bool simulationOutputEnabled) {
     this->simulationOutputEnabled = simulationOutputEnabled;
 }
+
+bool AppConfig::isColonyScenarioEnabled() {
+    return colonyScenarioEnabled;
+}
+
+void AppConfig::setColonyScenarioEnabled(bool colonyScenarioEnabled) {
+    this->colonyScenarioEnabled = colonyScenarioEnabled;
+}
+
+bool AppConfig::isColonyNutrientRich() {
+    return colonyNutrientRich;
+}
+
+void AppConfig::setColonyNutrientRich(bool colonyNutrientRich) {
+    this->colonyNutrientRich = colonyNutrientRich;
+}
+
+size_t AppConfig::getColonyGridSize() {
+    return colonyGridSize;
+}
+
+void AppConfig::setColonyGridSize(int colonyGridSize) {
+    this->colonyGridSize = colonyGridSize;
+}

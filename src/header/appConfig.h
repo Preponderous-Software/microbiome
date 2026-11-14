@@ -16,6 +16,11 @@ class AppConfig {
         size_t getTickLengthInSeconds();
         size_t getNumSimulations();
         bool isSimulationOutputEnabled();
+        // The branching-colony scenario (BranchingColony): off by default, in
+        // which case the app runs its usual Microbiome simulations.
+        bool isColonyScenarioEnabled();
+        bool isColonyNutrientRich();
+        size_t getColonyGridSize();
 
         void setEnvironmentSize(int environmentSize);
         void setEntityFactor(int entityFactor);
@@ -23,6 +28,9 @@ class AppConfig {
         void setTickLengthInSeconds(int tickLengthInSeconds);
         void setNumSimulations(int numSimulations);
         void setSimulationOutputEnabled(bool simulationOutputEnabled);
+        void setColonyScenarioEnabled(bool colonyScenarioEnabled);
+        void setColonyNutrientRich(bool colonyNutrientRich);
+        void setColonyGridSize(int colonyGridSize);
     private:
         size_t environmentSize = 10;
         size_t entityFactor = 10;
@@ -30,6 +38,9 @@ class AppConfig {
         size_t tickLengthInSeconds = 0; // set to 0 to run as fast as possible
         size_t numSimulations = 10;
         bool simulationOutputEnabled = true;
+        bool colonyScenarioEnabled = false;
+        bool colonyNutrientRich = false; // false: nutrient-poor, branching growth
+        size_t colonyGridSize = 201;
 };
 
 #endif
