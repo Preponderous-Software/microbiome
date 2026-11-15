@@ -1,9 +1,12 @@
 #include "header/mbapp.h"
+#include "header/branchingColony.h"
+#include "header/fractalDimension.h"
 #include "header/result.h"
 #include "header/usdRecording.h"
 
 #include <cerrno>
 #include <chrono>
+#include <algorithm>
 #include <climits>
 #include <cstdlib>
 #include <cstring>
@@ -16,6 +19,11 @@ MicrobiomeApplication::MicrobiomeApplication(AppConfig config, std::ostream& out
 }
 
 bool MicrobiomeApplication::run() {
+    if (config.isColonyScenarioEnabled()) {
+        runColonyScenario();
+        return true;
+    }
+
     // run simulations
     for (size_t i = 0; i < config.getNumSimulations(); i++) {
         *out << "Running simulation " << i + 1 << " of " << config.getNumSimulations() << std::endl;
@@ -77,6 +85,61 @@ void MicrobiomeApplication::printResultAverages() {
 
 }
 
+void MicrobiomeApplication::runColonyScenario() {
+    const bool rich = config.isColonyNutrientRich();
+    const int gridSize = static_cast<int>(config.getColonyGridSize());
+    // Seeded from rand(), so --seed repeats the colony too.
+    BranchingColony colony(gridSize, rich ? BranchingColony::Regime::NutrientRich : BranchingColony::Regime::NutrientPoor,
+                           static_cast<uint32_t>(std::rand()));
+    *out << "Growing a colony on " << (rich ? "nutrient-rich" : "nutrient-poor") << " agar ("
+         << gridSize << "x" << gridSize << ")..." << std::endl;
+    colony.growTo(gridSize * gridSize);
+
+    if (config.isSimulationOutputEnabled()) {
+        // At most 100 characters wide: each character stands for a square
+        // block of locations, '#' at least half occupied, '+' less, ' ' empty.
+        const int block = std::max(1, (gridSize + 99) / 100);
+        std::vector<std::string> lines;
+        for (int top = 0; top < gridSize; top += block) {
+            std::string line;
+            for (int left = 0; left < gridSize; left += block) {
+                int filled = 0, total = 0;
+                for (int y = top; y < std::min(top + block, gridSize); y++) {
+                    for (int x = left; x < std::min(left + block, gridSize); x++) {
+                        filled += colony.isOccupied(x, y) ? 1 : 0;
+                        total++;
+                    }
+                }
+                line += filled == 0 ? ' ' : (filled * 2 >= total ? '#' : '+');
+            }
+            line.erase(line.find_last_not_of(' ') + 1);
+            lines.push_back(line);
+        }
+        // Only the rows the colony reaches.
+        size_t first = 0, last = lines.size();
+        while (first < last && lines[first].empty()) {
+            first++;
+        }
+        while (last > first && lines[last - 1].empty()) {
+            last--;
+        }
+        for (size_t i = first; i < last; i++) {
+            *out << lines[i] << "\n";
+        }
+    }
+
+    const std::vector<std::pair<int, int>> cells = colony.getCells();
+    *out << "=== Colony Complete ===" << std::endl;
+    *out << "Cells: " << colony.getNumCells() << std::endl;
+    *out << "Radius: " << static_cast<int>(colony.getRadius()) << std::endl;
+    if (!rich) {
+        *out << "Nutrient packets released: " << colony.getPacketsReleased() << std::endl;
+    }
+    *out << "Box-counting dimension: " << fractal::colonyDimension(cells) << std::endl;
+    *out << "Mass-radius dimension: "
+         << fractal::massRadiusDimension(cells, gridSize / 2, gridSize / 2, 4.0, colony.getRadius() / 2) << std::endl;
+}
+
 namespace {
 
 // A whole number from 0 to UINT_MAX, digits only (no sign, spaces or suffix).
@@ -109,8 +172,11 @@ unsigned randomSeed() {
 
 int runConsoleApp(int argc, char** argv, std::ostream& out, std::ostream& err,
                   AppConfig config, const std::function<void()>& onStarted) {
-    // Both options are optional; with neither the app runs its default simulations.
+    // Every option is optional; with none the app runs its default simulations.
+    const char* usage = " [--record <path.usda>] [--seed <N>] [--colony <poor|rich>]";
     std::string recordPath;
+    bool colonyGiven = false;
+    bool colonyRich = false;
     bool seedGiven = false;
     unsigned seed = 0;
     for (int i = 1; i < argc; i++) {
@@ -121,10 +187,25 @@ int runConsoleApp(int argc, char** argv, std::ostream& out, std::ostream& err,
             seedGiven = true;
             i++;
         }
+        else if (std::strcmp(argv[i], "--colony") == 0 && i + 1 < argc
+                 && (std::strcmp(argv[i + 1], "poor") == 0 || std::strcmp(argv[i + 1], "rich") == 0)) {
+            colonyGiven = true;
+            colonyRich = std::strcmp(argv[++i], "rich") == 0;
+        }
         else {
-            err << "usage: " << argv[0] << " [--record <path.usda>] [--seed <N>]" << std::endl;
+            err << "usage: " << argv[0] << usage << std::endl;
             return 2;
         }
+    }
+    // A colony is not a Microbiome simulation, so there is nothing to record.
+    if (colonyGiven && !recordPath.empty()) {
+        err << "usage: " << argv[0] << usage << std::endl;
+        err << "--record cannot be combined with --colony" << std::endl;
+        return 2;
+    }
+    if (colonyGiven) {
+        config.setColonyScenarioEnabled(true);
+        config.setColonyNutrientRich(colonyRich);
     }
 
     if (onStarted) {

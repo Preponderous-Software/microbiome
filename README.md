@@ -201,12 +201,43 @@ numbers.
 Every launch runs different simulations: `mb_app` seeds its random numbers once at startup and
 prints the seed first (`Seed: 1234 (repeat this run with --seed 1234)`). `./mb_app --seed <N>`, with
 `N` a whole number from 0 to 4294967295, runs exactly the simulations of an earlier launch with that
-seed again. Any other arguments print `usage: ./mb_app [--record <path.usda>] [--seed <N>]` to
-stderr and exit with status 2. The live-view web server (`mb_webapp`) also seeds once per launch,
+seed again. Any other arguments print
+`usage: ./mb_app [--record <path.usda>] [--seed <N>] [--colony <poor|rich>]` to stderr and exit
+with status 2. The live-view web server (`mb_webapp`) also seeds once per launch,
 so a restart does not replay the same generations.
 
+## Branching colony (opt-in)
+
+Real *Bacillus subtilis* colonies on nutrient-poor agar grow as branching, fractal patterns with a
+box-counting dimension of about 1.7, while on nutrient-rich agar they grow compact, close to 2
+(Matsushita & Fujikawa, 1990). `./mb_app --colony poor` grows one such colony instead of the usual
+simulations, from a single cell in the middle of a 201x201 dish, until it nears the edge:
+
+- `poor` - food reaches the colony only by diffusing in: each unit of nutrient random-walks in from
+  just outside the colony, and the cell it reaches first eats it and divides into that empty
+  location. Tips catch the food before it can reach the gaps between them, so the colony branches
+  (diffusion-limited aggregation).
+- `rich` - food is everywhere, so any cell with an empty neighbour may divide into it (Eden growth),
+  and the colony grows compact.
+
+It prints the colony (each character a 2x2 block: `#` at least half occupied, `+` less) and two
+measures of how space-filling it is. Typical values (seeds 1-50):
+
+| `--colony` | cells   | box-counting dimension | mass-radius dimension |
+|------------|---------|------------------------|-----------------------|
+| `poor`     | ~2,700  | 1.45-1.57 (mean 1.52)  | 1.57-1.81 (mean 1.68) |
+| `rich`     | ~20,000 | 1.81-1.84 (mean 1.82)  | 2.00                  |
+
+Box counting (boxes of 4 locations up to a quarter of the colony's width) reads low on a colony
+this size, a filled disc measuring about 1.8, so it is the gap between the two regimes that
+matters; mass against radius lands near the 1.7 of the real colonies and of diffusion-limited
+aggregation. It is off by default (`AppConfig::isColonyScenarioEnabled()`), and `--seed` repeats a
+colony like it repeats the simulations. The scenario is `BranchingColony`
+(`src/header/branchingColony.h`) and the measures are in `src/header/fractalDimension.h`; neither
+the live viewer nor the browser builds run it.
+
 ## Testing
-The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting, replay recording and the console app's run loop, averages and options) and `./mb_web_tests` (the web server's HTTP endpoints, simulation loop and startup failures, which link Ulfius).
+The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting, replay recording, the branching-colony scenario and its fractal-dimension measures, and the console app's run loop, averages and options) and `./mb_web_tests` (the web server's HTTP endpoints, simulation loop and startup failures, which link Ulfius).
 
 ### How to run the tests in the dev container
 1. Install Docker

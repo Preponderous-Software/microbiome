@@ -20,6 +20,7 @@ class MicrobiomeApplication {
         // For tests: a smaller config, and somewhere other than stdout to print to.
         MicrobiomeApplication(AppConfig config, std::ostream& out);
         // Runs the configured simulations and prints their result(s); true on success.
+        // With the colony scenario enabled it grows one BranchingColony instead.
         bool run();
         void setRecordPath(std::string recordPath);
         std::vector<Result> getResults() const;
@@ -29,11 +30,13 @@ class MicrobiomeApplication {
         std::ostream* out;
         std::vector<Result> results;
         void printResultAverages();
+        void runColonyScenario();
 };
 
 /**
  * The console app (mb_app) without its main(), so the test suite can run it:
- * parses argc/argv (`--record <path.usda>`, `--seed <N>`), seeds rand(), runs
+ * parses argc/argv (`--record <path.usda>`, `--seed <N>`, `--colony <poor|rich>`,
+ * which enables the branching-colony scenario), seeds rand(), runs
  * a MicrobiomeApplication with `config` and returns the exit status (2 with a
  * usage message on `err` for any other arguments). `onStarted` is called once
  * the arguments are accepted and before any simulation runs; main() sends its
