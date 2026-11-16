@@ -181,10 +181,10 @@ cell, predatory amoebae (`Predator`, a protist grazer) are released and keep
 arriving in waves, up to `maxPredators` (8). An amoeba chases the nearest
 microorganism within `predatorSense`, engulfs it on contact, keeps
 `predatorGain` (35%) of its energy and divides once it has enough; a starved
-one returns three deaths' worth of nutrient to the field (`strata/src/survival.cpp`,
-[docs/STRATA.md](docs/STRATA.md#survival)). A chamber nobody plays has no
-predators, and the three microorganism species still do not prey on one
-another.
+one returns three deaths' worth of nutrient to the field
+(`strata/src/survival.cpp`, [docs/STRATA.md](docs/STRATA.md#survival)). A
+chamber nobody plays has no predators, and the three microorganism species
+still do not prey on one another.
 
 ### 4.2 Cross-feeding / syntrophy
 In real communities, one species' metabolic waste is frequently another's
