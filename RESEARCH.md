@@ -176,6 +176,16 @@ bacterial cells, sometimes carrying genes between hosts (transduction, see
 pure scavenging, and are the natural extension once multi-species dynamics
 (§2.4) exist.
 
+*In the Strata build:* survival mode only. Once a player first embodies a
+cell, predatory amoebae (`Predator`, a protist grazer) are released and keep
+arriving in waves, up to `maxPredators` (8). An amoeba chases the nearest
+microorganism within `predatorSense`, engulfs it on contact, keeps
+`predatorGain` (35%) of its energy and divides once it has enough; a starved
+one returns three deaths' worth of nutrient to the field
+(`strata/src/survival.cpp`, [docs/STRATA.md](docs/STRATA.md#survival)). A
+chamber nobody plays has no predators, and the three microorganism species
+still do not prey on one another.
+
 ### 4.2 Cross-feeding / syntrophy
 In real communities, one species' metabolic waste is frequently another's
 substrate — classic syntrophy, seen for example in anaerobic digestion
@@ -215,6 +225,15 @@ simulation into an actual evolutionary process: traits that improve survival
 and reproduction in the current environment will become more common over
 generations, for free, via selection — no explicit fitness function needed
 beyond "survive and reproduce more."
+
+*In the Strata build:* survival mode only, and chosen rather than selected.
+Each fission of the embodied cell offers three random mutations (faster
+swimming, a cheaper dash, a stronger or quicker toxin, a membrane that
+survives an engulfing, tolerance of oxygen and waste, or better uptake); the
+player keeps one, and it stays with the player's lineage for the run, so a
+descendant embodied after a death keeps it. The effects apply only to the
+embodied cell. Every other cell inherits its parent's species traits and
+metabolic rate unchanged, so the chamber itself does not evolve.
 
 ### 5.2 Horizontal gene transfer
 Bacteria don't only inherit traits vertically from a parent cell — they also
@@ -277,7 +296,8 @@ later items are much more interesting once the earlier ones exist:
    turns "a microorganism" into "a microbiome." **Implemented in the Strata
    build only** (§2.4); `src/` still has one species.
 5. **Mutation on reproduction** — evolution falls out of 1 and 4 almost for
-   free.
+   free. **Partly, in the Strata build's survival mode only** (§5.1): the
+   player's lineage takes chosen mutations; nothing mutates on its own.
 6. Everything else in this document (quorum sensing, HGT, dormancy,
    environmental gradients, predation) builds on top of 1–5.
 
