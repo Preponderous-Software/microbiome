@@ -16,6 +16,10 @@ console app (`mb_app`), the live viewer (`mb_webapp`) and the classic browser
 build all run. The opt-in Strata build (`mb_strata`, `strata/`, see
 [docs/STRATA.md](docs/STRATA.md)) is a separate simulation that already
 implements several of the proposals below; each section notes where it does.
+The opt-in branching-colony scenario (`./mb_app --colony <poor|rich>`,
+`src/header/branchingColony.h`) is a third, separate model: a single colony
+grown on its own occupancy grid, without the `Microbiome` and `Microorganism`
+classes and with no energy, metabolism or death. §2.3 notes what it covers.
 
 In `src/`:
 
@@ -114,6 +118,17 @@ cell (`crowdingLimit`, 4 cells) stays in the parent's cell instead, and
 fission is suppressed when that cell is full too (contact inhibition,
 `strata/src/micro_environment.cpp`); `maxPopulation` caps the total, and
 reproduction is not yet bounded by local nutrient concentration.
+
+*In the branching-colony scenario:* substrate only, and it shapes the colony
+rather than capping its size. In the `poor` regime a cell divides only when a
+unit of nutrient, random-walking in from just outside the colony, reaches an
+empty location beside it, so growth happens only where food arrives; tips
+catch most of it, and the colony branches as *Bacillus subtilis* does on
+nutrient-poor agar (Matsushita & Fujikawa, 1990; diffusion-limited
+aggregation, Witten & Sander, 1981). In the `rich` regime any cell with an
+empty neighbour may divide into it, and the colony grows compact. Neither
+regime follows Monod kinetics or plateaus: both grow one cell at a time until
+the colony nears the dish's edge (`BranchingColony::grow`).
 
 ### 2.4 Multi-species dynamics
 A "microbiome" is by definition a multi-species community — human/soil/gut
@@ -305,6 +320,10 @@ later items are much more interesting once the earlier ones exist:
 
 - Monod, J. (1949). *The Growth of Bacterial Cultures.* Annual Review of
   Microbiology. (Source of the Monod equation referenced in §2.3.)
+- Matsushita, M., & Fujikawa, H. (1990). *Diffusion-limited growth in
+  bacterial colony formation.* Physica A. (The branching colony, §2.3.)
+- Witten, T. A., & Sander, L. M. (1981). *Diffusion-limited aggregation, a
+  kinetic critical phenomenon.* Physical Review Letters. (§2.3)
 - Lotka, A. J. (1925) / Volterra, V. (1926). Predator-prey population
   dynamics, referenced in §2.4/§4.1.
 - Miller, M. B., & Bassler, B. L. (2001). *Quorum Sensing in Bacteria.*
