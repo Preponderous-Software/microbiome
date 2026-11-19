@@ -367,8 +367,10 @@ The console app (`mb_app`) reports to [trace](https://trace.danielstephenson.dev
 
 The first run prints one line saying so on stderr and writes a small settings file, `usage-reporting.conf`, to `$XDG_CONFIG_HOME/microbiome/` (by default `~/.config/microbiome/`; `~/Library/Application Support/microbiome/` on macOS, `%APPDATA%\microbiome\` on Windows). To turn reporting off:
 
-- set `enabled=false` in that file, or
-- set `TRACE_USAGE_REPORTING=off` or `DO_NOT_TRACK=1` in the environment (this turns it off for every trace-reporting program, and nothing is printed or written).
+- set `enabled=false` in that file (anything but `true`, `on`, `yes` or `1` is off, so a typo or a blank value never turns it on), or
+- set `TRACE_USAGE_REPORTING=off` or `DO_NOT_TRACK=1` in the environment (this turns it off for every trace-reporting program, and nothing is printed or written). Any `TRACE_USAGE_REPORTING` value other than blank, `true`, `on`, `yes` or `1`, and any `DO_NOT_TRACK` value other than blank, `0`, `false`, `off` or `no`, counts.
+
+A settings file that is there but cannot be read turns reporting off and is never replaced.
 
 The installation ID is a random UUID, made the first time reporting is on and kept in `trace-install-id` in `$XDG_DATA_HOME/microbiome/` (by default `~/.local/share/microbiome/`; `~/Library/Application Support/microbiome/` on macOS, `%APPDATA%\microbiome\` on Windows). It is not derived from anything about you or your machine; it only lets trace count installations rather than launches. Delete the file to reset it. Setting `TRACE_INSTALL_ID` sends that value instead, and the file is left alone. Every opt-out above also stops the ID: with reporting off, the file is never created, read or sent.
 
