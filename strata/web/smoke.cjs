@@ -244,7 +244,15 @@ async function touchDrag(cdp, points, steps = 12) {
         else console.log('(the cell died during the test; skipping the lost-focus check)');
     }
     if ((await player())[0] === 1) {
-        await tap('#toxin');
+        // The pad is hidden the moment the cell dies, so on a slow runner the
+        // tap can wait on a hidden button. Give up after a few seconds and
+        // only fail if the cell is still alive.
+        const sel = page.locator('#toxin');
+        try {
+            await (phone ? sel.tap({ timeout: 5000 }) : sel.click({ timeout: 5000 }));
+        } catch (e) {
+            if ((await player())[0] === 1) throw e;
+        }
         // State and energy in one read: on a slow runner the cell can die
         // between the tap and the check, which says nothing about the button.
         const [st, energy] = await page.evaluate(() => [Module._mb_player_state(), Module._mb_player_energy()]);
