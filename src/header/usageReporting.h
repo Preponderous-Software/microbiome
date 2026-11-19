@@ -14,7 +14,10 @@
 //   - enabled=false in the settings file this writes on first run, in the
 //     user's config directory (see settingsPath()).
 // The first run prints one notice saying so, on stderr; the settings file it
-// leaves behind is what keeps the notice from repeating. When the environment
+// leaves behind is what keeps the notice from repeating. Every switch fails
+// closed: only enabled=true (or on, yes, 1) reports, so a typo or a blank
+// value is off, and a settings file that exists but cannot be read turns
+// reporting off and is never overwritten. When the environment
 // has already opted out, nothing is printed and no file is written.
 //
 // The installation ID (the tag `install`) is a random UUID the client keeps in
@@ -37,6 +40,8 @@
 
 #if defined(_WIN32)
 #include <direct.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #else
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -180,7 +185,23 @@ inline trace_client::InstallId installIdSource() {
     return path.empty() ? trace_client::InstallId() : trace_client::InstallId::fromFile(path);
 }
 
-/** What the settings file says. Anything unreadable leaves reporting on. */
+/** Whether anything is at path, readable or not. */
+inline bool pathExists(const std::string &path) {
+#if defined(_WIN32)
+    struct _stat info;
+    return _stat(path.c_str(), &info) == 0;
+#else
+    struct stat info;
+    return stat(path.c_str(), &info) == 0;
+#endif
+}
+
+/**
+ * What the settings file says. Fails closed: a file that exists but cannot be
+ * read, or an enabled value that does not clearly mean on, leaves reporting
+ * off. Only a file that is not there at all means "first run" (on, plus the
+ * notice); a file without an enabled line keeps the default, on.
+ */
 struct Settings {
     bool exists;
     bool enabled;
@@ -192,7 +213,15 @@ inline Settings readSettings(const std::string &path) {
     Settings settings;
     if (path.empty()) return settings;
     std::ifstream in(path.c_str());
-    if (!in) return settings;
+    if (!in) {
+        if (pathExists(path)) {
+            // There but unreadable: it may say enabled=false, so neither
+            // report nor write the default (on) file over it.
+            settings.exists = true;
+            settings.enabled = false;
+        }
+        return settings;
+    }
     settings.exists = true;
     std::string line;
     while (std::getline(in, line)) {
@@ -203,11 +232,17 @@ inline Settings readSettings(const std::string &path) {
         std::string name = lowered(trim(line.substr(0, equals)));
         std::string value = trim(line.substr(equals + 1));
         if (name == "enabled") {
-            std::string v = lowered(value);
-            settings.enabled = !(v == "false" || v == "off" || v == "no" || v == "0");
+            // Only true, on, yes or 1 reports: a typo, a blank value or
+            // "disabled" is off, never on.
+            settings.enabled = trace_client::allowsReporting(value);
         } else if (name == "endpoint") {
             settings.endpoint = value;
         }
+    }
+    if (in.bad()) {
+        // A read error part way (or a directory where the file should be):
+        // what was not read may have said enabled=false.
+        settings.enabled = false;
     }
     return settings;
 }
@@ -220,7 +255,8 @@ inline std::string settingsFileContent() {
         "# random installation ID) to https://trace.danielstephenson.dev - nothing\n"
         "# about you, your machine or the simulation. The ID is kept in\n"
         "# " + (installIdPath().empty() ? std::string(INSTALL_ID_FILENAME) : installIdPath()) + "\n"
-        "# - delete that file to reset it. Set enabled to false to turn it off. TRACE_USAGE_REPORTING=off\n"
+        "# - delete that file to reset it. Set enabled to false to turn it off (anything\n"
+        "# but true, on, yes or 1 is off). TRACE_USAGE_REPORTING=off\n"
         "# or DO_NOT_TRACK=1 in the environment turns it off for every\n"
         "# trace-reporting program. This file also records that the notice was shown.\n"
         "enabled=true\n";

@@ -400,7 +400,7 @@ TEST_CASE("Any other value of the environment variables leaves reporting on", "[
     std::ostringstream out;
 
     SECTION("TRACE_USAGE_REPORTING") {
-        std::string value = GENERATE("", "on", "1", "true", "disabled");
+        std::string value = GENERATE("", "on", "1", "true", "YES");
         setenv("TRACE_USAGE_REPORTING", value.c_str(), 1);
 
         usage_reporting::UsageReporter reporter(out);
@@ -431,8 +431,16 @@ TEST_CASE("The settings file parser accepts the enabled spellings it documents",
         REQUIRE_FALSE(usage_reporting::readSettings(path).enabled);
     }
 
-    SECTION("anything else leaves it on") {
-        std::string value = GENERATE("true", "on", "1", "maybe", "");
+    SECTION("anything that does not clearly mean on turns it off too") {
+        // these used to leave reporting on
+        std::string value = GENERATE("maybe", "", "disabled", "flase", "\"false\"", "2");
+        std::ofstream(path.c_str()) << "enabled=" << value << "\n";
+
+        REQUIRE_FALSE(usage_reporting::readSettings(path).enabled);
+    }
+
+    SECTION("true, on, yes and 1 leave it on") {
+        std::string value = GENERATE("true", "on", "1", "yes", "TRUE");
         std::ofstream(path.c_str()) << "enabled=" << value << "\n";
 
         REQUIRE(usage_reporting::readSettings(path).enabled);
@@ -457,9 +465,45 @@ TEST_CASE("The settings file parser accepts the enabled spellings it documents",
         REQUIRE(settings.endpoint == "http://127.0.0.1:1");
     }
 
+    SECTION("a settings file that is there but cannot be read turns it off") {
+        REQUIRE(usage_reporting::makeDirectories(path));  // a directory where the file should be
+
+        usage_reporting::Settings settings = usage_reporting::readSettings(path);
+
+        REQUIRE(settings.exists);
+        REQUIRE_FALSE(settings.enabled);
+    }
+
     SECTION("no path means nothing was read") {
         REQUIRE_FALSE(usage_reporting::readSettings("").exists);
     }
+}
+
+TEST_CASE("A settings file that cannot be read turns reporting off and is not replaced", "[usage-reporting]") {
+    Sandbox sandbox;
+    std::ostringstream out;
+    // a directory where the file should be: it exists, but cannot be read as
+    // the settings, so the first-run file (enabled=true) must not replace it
+    REQUIRE(usage_reporting::makeDirectories(sandbox.settings()));
+
+    usage_reporting::UsageReporter reporter(out);
+
+    REQUIRE_FALSE(reporter.isEnabled());
+    REQUIRE(reporter.disabledReason() == trace_client::REASON_CONFIG);
+    REQUIRE(out.str().empty());
+    REQUIRE_FALSE(exists(sandbox.installIdFile()));
+}
+
+TEST_CASE("enabled=disabled in the settings file turns reporting off", "[usage-reporting]") {
+    Sandbox sandbox;
+    std::ostringstream out;
+    REQUIRE(usage_reporting::makeDirectories(usage_reporting::configDirectory()));
+    std::ofstream(sandbox.settings().c_str()) << "enabled=disabled\n";
+
+    usage_reporting::UsageReporter reporter(out);
+
+    REQUIRE_FALSE(reporter.isEnabled());
+    REQUIRE(reporter.disabledReason() == trace_client::REASON_CONFIG);
 }
 
 TEST_CASE("The settings file a first run writes keeps reporting on and explains itself", "[usage-reporting]") {

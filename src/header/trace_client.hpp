@@ -1,5 +1,5 @@
 /*
- * trace-client 0.3.0 (C++) -- https://github.com/Stephenson-Software/trace-client-cpp
+ * trace-client 0.4.0 (C++) -- https://github.com/Stephenson-Software/trace-client-cpp
  *
  * One call to report that a program was used. Copy this header into a project
  * as is; there is nothing else to add. C++11 or later, no library to link
@@ -10,7 +10,7 @@
 #ifndef TRACE_CLIENT_HPP
 #define TRACE_CLIENT_HPP
 
-#define TRACE_CLIENT_VERSION "0.3.0"
+#define TRACE_CLIENT_VERSION "0.4.0"
 
 // The executable that carries a report over HTTPS: the system's own curl
 // (shipped with macOS, with Windows 10 1803 and later, and with nearly every
@@ -92,13 +92,15 @@ typedef std::map<std::string, std::string> Tags;
 
 /**
  * Where dropped reports are mentioned. Called on the client's own thread for
- * failed deliveries and on the reporting thread for a full queue.
+ * failed deliveries and on the reporting thread for a full queue. It may call
+ * report(), and a drop that causes is not mentioned to it; see close() for
+ * calling that.
  */
 typedef std::function<void(const std::string &)> Logger;
 
 /** How many reports may wait to be sent before new ones are dropped. */
 static const std::size_t QUEUE_CAPACITY = 256;
-/** Per-request timeout, and the most close() waits for queued reports. */
+/** Per-request timeout, and the most close() waits for queued reports by default. */
 static const double TIMEOUT_SECONDS = 5.0;
 /** The server's limits: tags per report, and length of a name or tag key/value. */
 static const std::size_t MAX_TAGS = 32;
@@ -251,17 +253,14 @@ inline std::string number(double value) {
         text = out.str();
         std::istringstream in(text);
         in.imbue(std::locale::classic());
+        // A failed read does not read back: text that overflows (DBL_MAX
+        // written as 2e+308) is stored as the largest double with failbit set.
         double back = 0;
-        in >> back;
-        if (back == value) break;
+        if (in >> back && back == value) break;
     }
     return text;
 }
 
-/**
- * The report body. JSON is written by hand so this file has no dependencies;
- * the shape is fixed and small, three scalars and a flat string map.
- */
 /** The tag every event carries the installation's ID as. */
 static const char *const INSTALL_TAG = "install";
 
@@ -349,6 +348,10 @@ inline void makeParentDirectories(const std::string &path) {
     }
 }
 
+/**
+ * The report body. JSON is written by hand so this file has no dependencies;
+ * the shape is fixed and small, three scalars and a flat string map.
+ */
 inline std::string json(const std::string &application, const std::string &name,
                         bool hasValue, double value, const Tags &tags) {
     std::string out = "{\"application\":" + quote(cleanUtf8(application, std::string::npos));
@@ -417,13 +420,14 @@ struct Shared {
     bool closing;   // close() was called: send what is queued, then stop
     bool abandoned; // close() gave up waiting: stop now, drop the rest
     bool done;      // the sending thread has stopped
+    bool forgotten; // the logger closed the client: clear it when it returns
 #if defined(TRACE_CLIENT_POSIX)
     pid_t child; // the curl process in flight, or 0
 #elif defined(_WIN32) && !defined(TRACE_CLIENT_USE_LIBCURL)
     HANDLE child; // the curl process in flight, or NULL
 #endif
 
-    Shared() : closing(false), abandoned(false), done(false)
+    Shared() : closing(false), abandoned(false), done(false), forgotten(false)
 #if defined(TRACE_CLIENT_POSIX)
         , child(0)
 #elif defined(_WIN32) && !defined(TRACE_CLIENT_USE_LIBCURL)
@@ -431,22 +435,60 @@ struct Shared {
 #endif
     {}
 
-    // Guards logger alone, so a logger may itself call report(). close()
+    // Guards logger and forgotten, and is held while the logger runs. close()
     // clears the logger under it: once close() returns, the program's logger
     // is never called again, even by a thread that close() gave up on.
     std::mutex logMutex;
+    std::thread::id loggerThread; // running the logger now, if any; guarded by mutex
+
+    void setLoggerThread(std::thread::id thread) {
+        std::lock_guard<std::mutex> lock(mutex);
+        loggerThread = thread;
+    }
+
+    /**
+     * Whether the logger is what called this. That thread already holds
+     * logMutex, and locking it again would hang: whatever a logger calls has
+     * to check here first.
+     */
+    bool inLogger() {
+        try {
+            std::lock_guard<std::mutex> lock(mutex);
+            return loggerThread == std::this_thread::get_id();
+        } catch (...) {
+            return false;
+        }
+    }
 
     void log(const std::string &message) {
+        // A report from inside the logger that finds the queue full is
+        // dropped unmentioned: mentioning it would call the logger from
+        // inside itself, once per drop if the logger always reports.
+        if (inLogger()) return;
         try {
             std::lock_guard<std::mutex> lock(logMutex);
-            if (logger) logger("[trace] " + message);
+            if (!logger) return;
+            setLoggerThread(std::this_thread::get_id());
+            try {
+                logger("[trace] " + message);
+            } catch (...) {
+                // a logger that throws must not stop the sending thread
+            }
+            setLoggerThread(std::thread::id());
+            if (forgotten) logger = Logger();
         } catch (...) {
-            // a logger that throws must not stop the sending thread
         }
     }
 
     void forgetLogger() {
         try {
+            // The logger closed the client. It cannot be destroyed while it
+            // runs, so log() clears it on the way out; logMutex is this
+            // thread's already.
+            if (inLogger()) {
+                forgotten = true;
+                return;
+            }
             std::lock_guard<std::mutex> lock(logMutex);
             logger = Logger();
         } catch (...) {
@@ -460,6 +502,14 @@ struct Shared {
 #elif defined(_WIN32) && !defined(TRACE_CLIENT_USE_LIBCURL)
         if (child != NULL) ::TerminateProcess(child, 1);
 #endif
+    }
+
+    /** Called by close() with the mutex held: stop now, drop the rest. */
+    void abandon() {
+        abandoned = true;
+        queue.clear();
+        killChild();
+        changed.notify_all();
     }
 };
 
@@ -475,6 +525,7 @@ inline std::string curlConfig(const Shared &shared, const std::string &body) {
     timeout << timeoutWholeSeconds();
     std::string config;
     config += "url = " + curlQuote(shared.endpoint) + "\n";
+    config += "globoff\n"; // {} and [] in a URL would otherwise mean several requests
     config += "proto = \"=http,https\"\n";
     config += "header = \"Content-Type: application/json; charset=utf-8\"\n";
     config += "header = \"Expect:\"\n"; // no 100-continue round trip for a larger body
@@ -855,18 +906,73 @@ inline void drain(std::shared_ptr<Shared> shared) {
 
 } // namespace detail
 
+namespace detail {
+
+/** true, on, yes or 1, ignoring case and surrounding space. */
+inline bool isOn(const std::string &value) {
+    std::string v = trimLower(value);
+    return v == "true" || v == "on" || v == "yes" || v == "1";
+}
+
+/** false, off, no or 0, ignoring case and surrounding space. */
+inline bool isNegative(const std::string &value) {
+    std::string v = trimLower(value);
+    return v == "false" || v == "off" || v == "no" || v == "0";
+}
+
+} // namespace detail
+
 /**
- * Whether the environment asks for usage reporting to be off, via
- * TRACE_USAGE_REPORTING=off (also false, 0, no) or DO_NOT_TRACK=1 (also true,
- * yes), case-insensitive. Any other value, or none, leaves the program's own
- * setting in charge.
+ * Whether the environment asks for usage reporting to be off. Fails closed:
+ * TRACE_USAGE_REPORTING set to anything but blank, true, on, yes or 1 (so off,
+ * false, 0, no, a typo, ...), or DO_NOT_TRACK set to anything but blank, 0,
+ * false, off or no (so 1, true, yes, ...), case-insensitive and trimmed, turns
+ * reporting off. An environment that cannot be read counts as opting out too.
+ * Unset or blank variables leave the program's own setting in charge. Never
+ * throws.
  */
 inline bool environmentOptsOut() {
-    std::string reporting = detail::trimLower(detail::getEnvironment(ENV_TRACE_USAGE_REPORTING));
-    if (reporting == "off" || reporting == "false" || reporting == "0" || reporting == "no") return true;
-    std::string dnt = detail::trimLower(detail::getEnvironment(ENV_DO_NOT_TRACK));
-    return dnt == "1" || dnt == "true" || dnt == "yes";
+    try {
+        std::string reporting = detail::getEnvironment(ENV_TRACE_USAGE_REPORTING);
+        if (!detail::isBlank(reporting) && !detail::isOn(reporting)) return true;
+        std::string dnt = detail::getEnvironment(ENV_DO_NOT_TRACK);
+        return !detail::isBlank(dnt) && !detail::isNegative(dnt);
+    } catch (...) {
+        return true; // an environment that cannot be read may say DO_NOT_TRACK=1
+    }
 }
+
+/**
+ * Whether a program's own reporting setting, as read from its configuration,
+ * allows reporting -- for the constructor's enabled argument. Fails closed:
+ * only true, or a string reading true, on, yes or 1 (any case, surrounding
+ * space ignored), allows it. Anything else turns reporting off: false, a
+ * quoted "false", off, no, a typo, a null char pointer, a number, or any
+ * other type. Never throws.
+ *
+ *     bool enabled = trace_client::allowsReporting(settings.get("usage-reporting.enabled"));
+ */
+inline bool allowsReporting(bool setting) { return setting; }
+
+inline bool allowsReporting(const std::string &setting) {
+    try {
+        return detail::isOn(setting);
+    } catch (...) {
+        return false;
+    }
+}
+
+inline bool allowsReporting(const char *setting) {
+    return setting != NULL && allowsReporting(std::string(setting));
+}
+
+inline bool allowsReporting(char *setting) {
+    return allowsReporting(static_cast<const char *>(setting));
+}
+
+/** Any other type -- a number, a null pointer, a struct -- is not a clear "on". */
+template <typename T>
+inline bool allowsReporting(const T &) { return false; }
 
 /**
  * Where an installation's ID comes from, for the constructor that takes one.
@@ -905,10 +1011,14 @@ struct InstallId {
  *   TIMEOUT_SECONDS in total, then stops -- a CLI that reports and exits at
  *   once still sends, and an unreachable server never hangs the exit.
  *
- * Reporting is opt-out. The constructor decides once, first match wins, and
- * disabledReason() says which: the environment (REASON_ENVIRONMENT), the
- * program's own setting (REASON_CONFIG), a blank key (REASON_NO_KEY), or no
- * way to send (REASON_UNAVAILABLE).
+ * Reporting is opt-out. Every switch fails closed: a value that does not
+ * clearly mean "on" -- a typo, a quoted "false", an empty value -- turns
+ * reporting off, and nothing in this client ever turns a switch back on. The
+ * constructor decides once, first match wins, and disabledReason() says
+ * which: the environment (REASON_ENVIRONMENT; see environmentOptsOut), the
+ * program's own setting (REASON_CONFIG; read it with allowsReporting so it
+ * fails closed too), a blank key (REASON_NO_KEY), or no way to send
+ * (REASON_UNAVAILABLE).
  *
  * Every event carries the program's own version as the tag "version" -- the
  * third argument to the constructor, required, so a "command" event can be
@@ -929,7 +1039,7 @@ struct InstallId {
  *     trace_client::TraceClient trace("https://trace.example.org", "MyGame", MYGAME_VERSION,
  *                                     settings.key,
  *                                     trace_client::InstallId::fromFile(dataDir + "/trace-install-id"),
- *                                     settings.usageReporting);
+ *                                     trace_client::allowsReporting(settings.usageReporting));
  *     trace.report("startup");
  *     ...
  *     trace.close(); // or let the destructor do it
@@ -1005,7 +1115,7 @@ public:
     ~TraceClient() { close(); }
 
     /** Whether report() will actually send anything. False after close(). */
-    bool isEnabled() const { return static_cast<bool>(shared_); }
+    bool isEnabled() const { return static_cast<bool>(current()); }
 
     /**
      * Why this client reports nothing: empty when it reports, otherwise one
@@ -1031,29 +1141,56 @@ public:
     /**
      * Stops the sending thread, giving reports already queued up to
      * timeoutSeconds in total to be sent first; whatever is still in flight
-     * then is abandoned. Safe to call more than once, and on a disabled client.
+     * then is abandoned. A NaN or negative timeoutSeconds waits for nothing;
+     * an infinite one waits until the queue is sent. Safe to call more than
+     * once, and on a disabled client. Called from inside the Logger it waits
+     * for nothing, whatever timeoutSeconds says, and abandons what is queued.
      */
     void close(double timeoutSeconds = TIMEOUT_SECONDS) {
-        if (!shared_) return;
         std::shared_ptr<detail::Shared> shared;
-        shared.swap(shared_);
+        bool insideLogger = false;
+        try {
+            std::lock_guard<std::mutex> lock(sharedMutex_);
+            shared.swap(shared_);
+            insideLogger = shared && shared->inLogger();
+            // Under the lock: a second close() finds shared_ empty and returns
+            // at once, and the destructor it may be part of must not find
+            // thread_ still joinable.
+            if (insideLogger) thread_.detach();
+        } catch (...) {
+            return;
+        }
+        if (!shared) return;
         try {
             std::unique_lock<std::mutex> lock(shared->mutex);
+            if (insideLogger) {
+                // Waiting could never end: the sending thread may be running
+                // the logger, or waiting its turn to. Nothing here touches
+                // this object, which the program may now be destroying.
+                shared->abandon();
+                lock.unlock();
+                shared->forgetLogger();
+                return;
+            }
             shared->closing = true;
             shared->changed.notify_all();
+            // NaN and negative bounds wait for nothing. Past about three years
+            // (infinity included) the deadline would overflow the clock, so
+            // such a bound waits until the queue is sent; each request is
+            // still bounded by curl's own timeout.
+            double seconds = timeoutSeconds > 0 ? timeoutSeconds : 0;
+            bool unbounded = seconds > 1e8;
             std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::now()
-                + std::chrono::milliseconds(static_cast<long long>(timeoutSeconds * 1000));
+                + std::chrono::milliseconds(unbounded ? 0 : static_cast<long long>(seconds * 1000));
             while (!shared->done) {
-                if (shared->changed.wait_until(lock, deadline) == std::cv_status::timeout) break;
+                if (unbounded) shared->changed.wait(lock);
+                else if (shared->changed.wait_until(lock, deadline) == std::cv_status::timeout) break;
             }
             if (shared->done) {
                 lock.unlock();
                 thread_.join();
             } else {
-                shared->abandoned = true;
-                shared->queue.clear();
-                shared->killChild();
-                shared->changed.notify_all();
+                shared->abandon();
                 lock.unlock();
                 shared->forgetLogger();
                 // The thread holds its own reference to the shared state, so
@@ -1061,7 +1198,7 @@ public:
                 thread_.detach();
             }
         } catch (...) {
-            if (thread_.joinable()) thread_.detach();
+            if (!insideLogger && thread_.joinable()) thread_.detach();
         }
     }
 
@@ -1096,7 +1233,9 @@ private:
                 }
             }
         } catch (...) {
-            shared_.reset();
+            // The sending thread may already be running: stop it as close()
+            // does, or the destructor would find it joinable and terminate.
+            close(0.0);
             installId_.clear();
             reason_ = REASON_UNAVAILABLE;
         }
@@ -1134,26 +1273,39 @@ private:
 #endif
     }
 
-    void enqueue(const std::string &name, bool hasValue, double value, const Tags &tags) {
-        if (!shared_ || detail::isBlank(name)) return;
+    // A copy of shared_, taken under its lock: the logger runs on the sending
+    // thread and may call report() while the program's thread is in close().
+    std::shared_ptr<detail::Shared> current() const {
         try {
-            std::string body = detail::json(shared_->application, name, hasValue, value,
+            std::lock_guard<std::mutex> lock(sharedMutex_);
+            return shared_;
+        } catch (...) {
+            return std::shared_ptr<detail::Shared>();
+        }
+    }
+
+    void enqueue(const std::string &name, bool hasValue, double value, const Tags &tags) {
+        std::shared_ptr<detail::Shared> shared = current();
+        if (!shared || detail::isBlank(name)) return;
+        try {
+            std::string body = detail::json(shared->application, name, hasValue, value,
                                             detail::withInstall(detail::withVersion(tags, version_), installId_));
             bool full = false;
             {
-                std::lock_guard<std::mutex> lock(shared_->mutex);
-                full = shared_->queue.size() >= QUEUE_CAPACITY;
+                std::lock_guard<std::mutex> lock(shared->mutex);
+                full = shared->queue.size() >= QUEUE_CAPACITY;
                 if (!full) {
-                    shared_->queue.push_back(body);
-                    shared_->changed.notify_all();
+                    shared->queue.push_back(body);
+                    shared->changed.notify_all();
                 }
             }
-            if (full) shared_->log("queue full, dropped " + name);
+            if (full) shared->log("queue full, dropped " + name);
         } catch (...) {
             // a report must never be the reason a program stops
         }
     }
 
+    mutable std::mutex sharedMutex_; // guards shared_ alone
     std::shared_ptr<detail::Shared> shared_;
     std::thread thread_;
     std::string version_;
