@@ -367,7 +367,7 @@ The console app (`mb_app`) reports to [trace](https://trace.danielstephenson.dev
 
 The first run prints one line saying so on stderr and writes a small settings file, `usage-reporting.conf`, to `$XDG_CONFIG_HOME/microbiome/` (by default `~/.config/microbiome/`; `~/Library/Application Support/microbiome/` on macOS, `%APPDATA%\microbiome\` on Windows). To turn reporting off:
 
-- set `enabled=false` in that file (anything but `true`, `on`, `yes` or `1` is off, so a typo or a blank value never turns it on), or
+- set `enabled=false` in that file (anything but `true`, `on`, `yes` or `1` is off, so a typo or a blank value never turns it on; `enable=false`, `disabled=true` or `usage_reporting=off` count as off too), or
 - set `TRACE_USAGE_REPORTING=off` or `DO_NOT_TRACK=1` in the environment (this turns it off for every trace-reporting program, and nothing is printed or written). Any `TRACE_USAGE_REPORTING` value other than blank, `true`, `on`, `yes` or `1`, and any `DO_NOT_TRACK` value other than blank, `0`, `false`, `off` or `no`, counts.
 
 A settings file that is there but cannot be read turns reporting off and is never replaced.
