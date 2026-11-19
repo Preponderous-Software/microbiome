@@ -479,6 +479,48 @@ TEST_CASE("The settings file parser accepts the enabled spellings it documents",
     }
 }
 
+TEST_CASE("An opt-out written under a near-miss name is an opt-out", "[usage-reporting]") {
+    Sandbox sandbox;
+    std::string path = sandbox.home + "/sample.conf";
+
+    SECTION("each of these turns reporting off") {
+        // these used to be skipped, leaving the default (on)
+        std::string line = GENERATE(
+            "enable=false", "Enable=off", "usage-reporting.enabled=no", "usage_reporting_enabled=0",
+            "disabled=true", "Disabled=yes", "usage_reporting=off", "usageReporting=false");
+        std::ofstream(path.c_str()) << line << "\n";
+
+        REQUIRE_FALSE(usage_reporting::readSettings(path).enabled);
+    }
+
+    SECTION("it wins over enabled=true elsewhere in the file") {
+        std::ofstream(path.c_str()) << "disabled=true\nenabled=true\n";
+
+        REQUIRE_FALSE(usage_reporting::readSettings(path).enabled);
+    }
+
+    SECTION("near-miss names that say on leave it on") {
+        std::string line = GENERATE("enable=true", "disabled=false", "disabled=no", "usage_reporting=on");
+        std::ofstream(path.c_str()) << "enabled=true\n" << line << "\n";
+
+        REQUIRE(usage_reporting::readSettings(path).enabled);
+    }
+}
+
+TEST_CASE("A near-miss opt-out in the settings file keeps the reporter off", "[usage-reporting]") {
+    Sandbox sandbox;
+    std::ostringstream out;
+    REQUIRE(usage_reporting::makeDirectories(usage_reporting::configDirectory()));
+    std::ofstream(sandbox.settings().c_str()) << "enable=false\n";
+
+    usage_reporting::UsageReporter reporter(out);
+
+    REQUIRE_FALSE(reporter.isEnabled());
+    REQUIRE(reporter.disabledReason() == trace_client::REASON_CONFIG);
+    REQUIRE(out.str().empty());
+    REQUIRE_FALSE(exists(sandbox.installIdFile()));
+}
+
 TEST_CASE("A settings file that cannot be read turns reporting off and is not replaced", "[usage-reporting]") {
     Sandbox sandbox;
     std::ostringstream out;

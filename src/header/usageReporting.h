@@ -16,7 +16,8 @@
 // The first run prints one notice saying so, on stderr; the settings file it
 // leaves behind is what keeps the notice from repeating. Every switch fails
 // closed: only enabled=true (or on, yes, 1) reports, so a typo or a blank
-// value is off, and a settings file that exists but cannot be read turns
+// value is off, as is an opt-out written another way (enable=false,
+// disabled=true, usage_reporting=off), and a settings file that exists but cannot be read turns
 // reporting off and is never overwritten. When the environment
 // has already opted out, nothing is printed and no file is written.
 //
@@ -209,6 +210,38 @@ struct Settings {
     Settings() : exists(false), enabled(true) {}
 };
 
+/** key lower-cased, with everything but letters and digits dropped. */
+inline std::string normalisedKey(const std::string &key) {
+    std::string result;
+    for (std::size_t i = 0; i < key.size(); ++i) {
+        char c = key[i];
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) result += c;
+    }
+    return result;
+}
+
+/**
+ * Whether a settings line is an attempt to turn reporting off that is not
+ * written exactly as enabled=... . Such a line used to be skipped, leaving the
+ * default (on). Whoever wrote one of these did not ask for reporting, so each
+ * counts as off: a key that spells "enabled" another way (enable=false,
+ * usage-reporting.enabled=no, ...) with a value that is not clearly on, one
+ * that spells "disabled" (disabled=true, ...) with a value that is on, or the
+ * bare name (usage_reporting=off, usageReporting=false) with a value that is
+ * not clearly on.
+ */
+inline bool isNearMissOptOut(const std::string &name, const std::string &value) {
+    if (name == "enabled") return false; // the switch itself
+    std::string key = normalisedKey(name);
+    if (key.find("disabl") != std::string::npos) return trace_client::allowsReporting(value);
+    if (key.find("enabl") != std::string::npos
+        || key == "usagereport" || key == "usagereporting" || key == "usagereports") {
+        return !trace_client::allowsReporting(value);
+    }
+    return false;
+}
+
 inline Settings readSettings(const std::string &path) {
     Settings settings;
     if (path.empty()) return settings;
@@ -223,6 +256,7 @@ inline Settings readSettings(const std::string &path) {
         return settings;
     }
     settings.exists = true;
+    bool nearMissOptOut = false;
     std::string line;
     while (std::getline(in, line)) {
         line = trim(line);
@@ -237,7 +271,13 @@ inline Settings readSettings(const std::string &path) {
             settings.enabled = trace_client::allowsReporting(value);
         } else if (name == "endpoint") {
             settings.endpoint = value;
+        } else if (isNearMissOptOut(name, value)) {
+            nearMissOptOut = true;
         }
+    }
+    if (nearMissOptOut) {
+        // Wins over an enabled=true elsewhere in the file.
+        settings.enabled = false;
     }
     if (in.bad()) {
         // A read error part way (or a directory where the file should be):
