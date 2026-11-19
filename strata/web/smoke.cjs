@@ -293,8 +293,11 @@ async function touchDrag(cdp, points, steps = 12) {
     await stage.screenshot({ path: path.join(outDir, 'survival-mutation.png') });
     await tap('#mutate [data-mutation="1"]');
     check(await page.evaluate(() => window.mbChosen) === 1, 'tapping a mutation chooses it');
-    await page.waitForFunction(() => document.getElementById('mutate').hidden, null, { timeout: 5000 });
-    check(true, 'the offer closes once answered');
+    // The page re-reads the offer on a 250 ms timer, which a slow software-GL
+    // runner can hold up for seconds, so wait as long as the other steps do.
+    const closed = await page.waitForFunction(() => document.getElementById('mutate').hidden, null, { timeout: 30000 }).then(() => true, () => false);
+    const realOffers = await page.evaluate(() => Module.ccall('mb_offer_count', 'number', [], []));
+    check(closed, `the offer closes once answered${closed ? '' : ` (still shown; the game itself reports ${realOffers} offer(s))`}`);
 
     check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
     await browser.close();
