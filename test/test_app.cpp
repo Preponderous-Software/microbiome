@@ -258,3 +258,23 @@ TEST_CASE("--colony cannot be recorded", "[app][colony]") {
     REQUIRE(contains(err.str(), "--record cannot be combined with --colony"));
     REQUIRE(out.str().empty());
 }
+
+// The README's dev-container steps run `./cr.sh`. The script was once checked out without the
+// execute bit and with no shebang, so that step failed with "Permission denied" (#100). Unlike the
+// rest of the suite, this test reads a repository file, so it needs mb_tests run from the
+// repository root, as run_tests.sh, the README and CI's image all do.
+TEST_CASE("cr.sh is executable, has a shebang and sets -e", "[app]") {
+    std::ifstream script("cr.sh");
+    INFO("cr.sh not found: run mb_tests from the repository root");
+    REQUIRE(script.good());
+    REQUIRE(access("cr.sh", X_OK) == 0);
+
+    std::string firstLine;
+    std::getline(script, firstLine);
+    REQUIRE(firstLine == "#!/bin/sh");
+
+    std::stringstream rest;
+    rest << script.rdbuf();
+    REQUIRE(contains(rest.str(), "\nset -e\n"));
+    REQUIRE(contains(rest.str(), "rm -f ./mb_app"));
+}
