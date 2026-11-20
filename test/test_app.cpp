@@ -258,3 +258,21 @@ TEST_CASE("--colony cannot be recorded", "[app][colony]") {
     REQUIRE(contains(err.str(), "--record cannot be combined with --colony"));
     REQUIRE(out.str().empty());
 }
+
+// The README's dev-container steps run `./cr.sh` from the repository root, where this suite runs
+// too (it reads version.txt there). The script was once checked out without the execute bit and
+// with no shebang, so that step failed with "Permission denied" (#100).
+TEST_CASE("cr.sh can be run as ./cr.sh and stops at a failed build", "[app]") {
+    std::ifstream script("cr.sh");
+    REQUIRE(script.good());
+    REQUIRE(access("cr.sh", X_OK) == 0);
+
+    std::string firstLine;
+    std::getline(script, firstLine);
+    REQUIRE(firstLine == "#!/bin/sh");
+
+    std::stringstream rest;
+    rest << script.rdbuf();
+    REQUIRE(contains(rest.str(), "\nset -e\n"));
+    REQUIRE(contains(rest.str(), "rm -f ./mb_app"));
+}

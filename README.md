@@ -237,7 +237,7 @@ colony like it repeats the simulations. The scenario is `BranchingColony`
 the live viewer nor the browser builds run it.
 
 ## Testing
-The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting, replay recording, the branching-colony scenario and its fractal-dimension measures, and the console app's run loop, averages and options) and `./mb_web_tests` (the web server's HTTP endpoints, simulation loop and startup failures, which link Ulfius).
+The project uses **Catch2** for all of its tests, split into two suites: `./mb_tests` (the simulation, configuration, logging, usage reporting, replay recording, the branching-colony scenario and its fractal-dimension measures, and the console app's run loop, averages, options and `cr.sh` run script) and `./mb_web_tests` (the web server's HTTP endpoints, simulation loop and startup failures, which link Ulfius).
 
 ### How to run the tests in the dev container
 1. Install Docker
